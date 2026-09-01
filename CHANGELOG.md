@@ -6,6 +6,8 @@ promoted to the new version heading on release.
 
 ## Unreleased
 
+## 0.1.0-alpha.1 - 2026-09-01
+
 - feat: **`withSystemColumns` — project a PostgreSQL system column alongside the whole entity.**
   `SELECT u.*` does not return a system column, so a generated record carrying an `xmin` field
   fails to hydrate on every whole-entity read. `select u` followed by
