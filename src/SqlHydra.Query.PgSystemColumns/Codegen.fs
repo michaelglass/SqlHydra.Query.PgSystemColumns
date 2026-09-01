@@ -27,6 +27,7 @@
 namespace SqlHydra.Query.PgSystemColumns
 
 open System.Data
+open GlobExpressions
 open SqlHydra.Domain
 
 module Codegen =
@@ -116,70 +117,62 @@ module Codegen =
         | None ->
             failwithf "'%s' is not a PostgreSQL system column. The six are: %s." name (names |> String.concat ", ")
 
-    /// The columns to contribute to one table: the named ones, on PostgreSQL, on base tables the
-    /// `tables` predicate accepts.
+    /// One `system_columns` entry: `{schema}/{table}.{column}`, the table part a glob. The
+    /// same grammar a column filter in SqlHydra's `[filters]` uses, and the same grammar the
+    /// in-library `system_columns` setting uses -- the two paths should not spell the same
+    /// choice two different ways.
+    ///
+    /// Split at the LAST dot, because a schema or table may contain one and a system-column
+    /// name never does.
+    let parseEntry (entry: string) : string * Column =
+        match entry.LastIndexOf '.' with
+        | -1 ->
+            failwithf
+                "'%s' does not name a table. Write \"{schema}/{table}.{column}\" -- e.g. \"sales/currency.xmin\"."
+                entry
+        | i -> entry.Substring(0, i), column (entry.Substring(i + 1))
+
+    /// The columns to contribute to one table: those whose entry matches it, on PostgreSQL,
+    /// on base tables.
     ///
     /// A VIEW has no system columns of its own -- `SELECT xmin FROM a_view` is an error unless
     /// the view happens to project one -- so contributing to one would generate a record that
     /// cannot be read. The provider check is what keeps the same extension harmless when it is
     /// registered in a project that also generates for SQL Server or SQLite.
-    let contributeToTables
-        (columnNames: string list)
-        (tables: Table -> bool)
-        (ctx: ColumnContributionContext)
-        : Column list =
-        if
-            ctx.Provider = ProviderType.Npgsql
-            && ctx.Table.Type = TableType.Table
-            && tables ctx.Table
-        then
-            columnNames |> List.map column
+    let contributeTo (entries: (string * Column) list) (ctx: ColumnContributionContext) : Column list =
+        if ctx.Provider = ProviderType.Npgsql && ctx.Table.Type = TableType.Table then
+            let path = $"{ctx.Table.Schema}/{ctx.Table.Name}"
+
+            entries
+            |> List.filter (fun (tablePattern, _) -> Glob(tablePattern).IsMatch path)
+            |> List.map snd
+            // Two entries can match the same table through different globs.
+            |> List.distinctBy _.Name
         else
             []
 
-    /// The named columns, on every PostgreSQL base table.
-    let contributeTo (columnNames: string list) (ctx: ColumnContributionContext) : Column list =
-        contributeToTables columnNames (fun _ -> true) ctx
-
-    /// A `tables` predicate matching the named tables, in whatever schema they are in.
-    ///
-    /// Naming tables is usually what you want, because a system column has a cost at every use
-    /// site: `SELECT t.*` does not return it, so every whole-entity read of a table that carries
-    /// the field must project it with `withSystemColumns` or fail to hydrate. Putting `xmin` on
-    /// a table nobody versions buys nothing and breaks every read of it.
-    let onlyTables (tableNames: string list) : Table -> bool =
-        let wanted = tableNames |> List.map _.ToLowerInvariant() |> Set.ofList
-        fun table -> wanted.Contains(table.Name.ToLowerInvariant())
-
-    /// Contributes a chosen set of system columns. Inherit it with a parameterless constructor,
-    /// in the project the generator runs over, when you want something other than `xmin`:
+    /// Contributes system columns to the tables you name. Inherit it with a parameterless
+    /// constructor, in the project the generator runs over:
     ///
     ///     type MySystemColumns() =
-    ///         inherit PgSystemColumns([ "xmin" ], onlyTables [ "users"; "orders" ])
+    ///         inherit PgSystemColumns([ "public/users.xmin"; "sales/*.xmin" ])
     ///
-    /// Abstract on purpose. `SqlHydra.Cli` instantiates every non-abstract `ISqlHydraExtension`
-    /// it finds in a registered assembly, so a concrete base would contribute its own set
-    /// alongside the subclass's.
+    /// THERE IS NO DEFAULT, and this class is abstract, so registering this package alone in
+    /// `[extensions]` does nothing -- deliberately. A system column contributed to a table
+    /// nobody asked about does not merely add an unused field: `SELECT t.*` does not return
+    /// one, so the record fails to hydrate on every whole-entity read of that table. There is
+    /// no safe blanket default to offer, and SqlHydra's `[extensions]` section is a bare list
+    /// of assembly names with nowhere to put a setting, so the choice has to be a type in your
+    /// own project.
+    ///
+    /// Abstract also keeps `SqlHydra.Cli` from instantiating this base alongside your subclass:
+    /// it constructs every non-abstract `ISqlHydraExtension` it finds in a registered assembly.
     [<AbstractClass>]
-    type PgSystemColumns(columnNames: string list, tables: Table -> bool) =
-        /// Every PostgreSQL base table. Right only when every whole-entity read of every table
-        /// will project the column; `onlyTables` says why that is usually not the case.
-        new(columnNames) = PgSystemColumns(columnNames, (fun _ -> true))
-
-        /// The names this extension contributes, validated on construction so a typo fails
-        /// before the generator opens a connection.
-        member _.ColumnNames = columnNames |> List.map (column >> _.Name)
+    type PgSystemColumns(entries: string list) =
+        /// Parsed on construction, so a malformed entry or a misspelled column fails before the
+        /// generator opens a connection rather than at the first read that hydrates the record.
+        member _.Entries = entries |> List.map parseEntry
 
         interface IContributeColumns with
             member this.Contribute(baseFn) =
-                fun ctx -> baseFn ctx @ contributeToTables this.ColumnNames tables ctx
-
-    /// The zero-configuration default, and what registering this package gets you: `xmin`, the
-    /// only one of the six with an everyday use.
-    ///
-    /// It is the row version, so optimistic concurrency becomes a plain column comparison --
-    /// read the version, include it in the WHERE of the update, and a losing writer updates no
-    /// rows instead of silently overwriting. The other five are diagnostic; ask for them by
-    /// inheriting `PgSystemColumns`.
-    type XminColumn() =
-        inherit PgSystemColumns([ "xmin" ])
+                fun ctx -> baseFn ctx @ contributeTo this.Entries ctx

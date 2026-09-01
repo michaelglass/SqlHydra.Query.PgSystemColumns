@@ -58,15 +58,25 @@ the edit instead of silently overwriting theirs. No locks, no re-read.
 dotnet add package SqlHydra.Query.PgSystemColumns
 ```
 
-Then register it in your `sqlhydra-npgsql.toml`:
+Then name the columns you want, per table, in the project the generator runs over:
+
+```fsharp
+open SqlHydra.Query.PgSystemColumns
+
+type MySystemColumns() =
+    inherit Codegen.PgSystemColumns([ "public/users.xmin"; "sales/*.xmin" ])
+```
+
+and register **that project** in your `sqlhydra-npgsql.toml`:
 
 ```toml
 [extensions]
-type_mappings = [ "SqlHydra.Query.PgSystemColumns" ]
+type_mappings = [ "YourProject" ]
 ```
 
-That is the whole configuration. `dotnet sqlhydra npgsql` now emits `xmin` on every base
-table, with both attributes:
+An entry is `{schema}/{table}.{column}`, the table part a glob — the grammar SqlHydra's
+`[filters]` already uses. `dotnet sqlhydra npgsql` then emits `xmin` on the tables you named,
+with both attributes:
 
 ```fsharp
 /// The id of the transaction that inserted this row version — PostgreSQL's row
@@ -87,28 +97,30 @@ no NpgsqlDbType"*). `[<ReadOnlyColumn>]` keeps the column out of every `INSERT` 
 Views get nothing: `SELECT xmin FROM a_view` is an error unless the view projects one, so a
 view record carrying the field could not be read.
 
-### A different set of columns, or only some tables
+### Why there is no zero-configuration default
 
-`XminColumn` puts `xmin` on every base table, which is right only if every whole-entity read of
-every table is going to project it — `SELECT t.*` does not return a system column, so a record
-that carries the field and is read whole fails to hydrate without `withSystemColumns`. If you
-version three tables, name three tables.
+There is nothing to register but your own project: this package ships no ready-made extension,
+and `Codegen.PgSystemColumns` is abstract on purpose.
 
-Subclass in the project the generator runs over:
+A blanket default would have to contribute to every base table, and that is not a neutral
+default — it **breaks** every table it touches. `SELECT t.*` does not return a system column, so
+a record that declares the field fails to hydrate on every whole-entity read unless that read is
+changed to project it. Against a schema of 97 tables that wants row versioning on 3, the
+"convenient" default adds a required field to 97 record types and breaks 94 of them.
 
-```fsharp
-open SqlHydra.Query.PgSystemColumns
+So the tables have to be named, and there is nowhere in the TOML to name them: SqlHydra's
+`[extensions]` section is a bare list of assembly names with no per-extension settings. The
+choice therefore has to be a type in your own project. That is a limitation of the extension
+model, not a preference — the equivalent in-library setting is one line of TOML:
 
-type MySystemColumns() =
-    inherit Codegen.PgSystemColumns([ "xmin" ], Codegen.onlyTables [ "users"; "orders" ])
+```toml
+[sqlhydra_query_integration]
+system_columns = [ "public/users.xmin" ]
 ```
 
-and name that project in `[extensions]` instead. A column name that is not one of the six fails
-the build rather than silently generating nothing.
-
-There is no way to configure this from the TOML: SqlHydra's `[extensions]` section is a list of
-assembly names with no per-extension settings, so a choice other than the default has to be
-expressed as a type.
+A malformed entry, a bare `"xmin"`, or a column that is not one of the six fails when the
+extension is constructed — before the generator opens a connection — rather than generating
+nothing and failing later at the first read that hydrates the record.
 
 ### Requirements
 

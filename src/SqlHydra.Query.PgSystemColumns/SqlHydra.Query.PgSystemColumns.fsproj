@@ -33,6 +33,11 @@
          `Column.ReadOnly` from the read-only work. None exist in 4.1.1. SelectQueryIR,
          SelectColumn and SelectBuilder remain the query-side surface. -->
     <PackageReference Include="SqlHydra.Query" Version="4.2.0-seam.1" />
+    <!-- Same glob engine SqlHydra.Cli uses for `[filters]`, so a `{schema}/{table}` pattern
+         means exactly what it means there. A release should split the codegen half into its
+         own assembly rather than put a codegen-only dependency in front of every consumer of
+         the query half. -->
+    <PackageReference Include="Glob" Version="1.1.9" />
   </ItemGroup>
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="/" />

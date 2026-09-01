@@ -26,12 +26,20 @@ promoted to the new version heading on release.
   `contributeTo` returns nothing for a view (`SELECT xmin FROM a_view` is an error unless the
   view projects one) and nothing for a non-PostgreSQL provider.
 
-- feat: **`Codegen.onlyTables`** — contribute to named tables rather than every base table.
-  `SELECT t.*` does not return a system column, so a record that carries the field and is read
-  whole fails to hydrate unless the read projects it; putting `xmin` on every table in a codebase
-  that versions three of them breaks every whole-entity read of the rest. Found by consuming the
-  package for real. Pass it as the second constructor argument to `Codegen.PgSystemColumns`;
-  `Codegen.contributeToTables` is the same decision as a pure function.
+- feat: **system columns are named per table, in the `{schema}/{table}.{column}` grammar**
+  (`[ "public/users.xmin"; "sales/*.xmin" ]`), the table part a glob. The same grammar SqlHydra's
+  `[filters]` uses, and the same grammar the in-library `system_columns` setting uses -- the two
+  paths should not spell the same choice two different ways. A bare `"xmin"`, a malformed entry,
+  or a column that is not one of the six fails when the extension is constructed, before the
+  generator opens a connection.
+
+- change: **there is no zero-configuration default, and `Codegen.PgSystemColumns` is abstract.**
+  Registering this package alone in `[extensions]` now does nothing. A blanket default would have
+  to contribute to every base table, and that is not neutral -- it breaks every table it touches,
+  because `SELECT t.*` does not return a system column and a record that declares the field fails
+  to hydrate on every whole-entity read. Since SqlHydra's `[extensions]` section is a bare list of
+  assembly names with nowhere to put a setting, the choice has to be a type in the consumer's own
+  project. `Codegen.XminColumn` and `Codegen.onlyTables` are gone with it.
 
 - change: **the write side needs no `excludeColumn`.** `[<ReadOnlyColumn>]` keeps the column out
   of every `INSERT` column list and `UPDATE SET` clause, so a row read back can be written back

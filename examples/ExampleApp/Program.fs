@@ -70,10 +70,10 @@ let insertNew () =
 // sync:usage-queries:end
 
 // The codegen half, driven directly. `contributeTo` is what the generator calls, once per
-// table; `Codegen.all` is the six columns with the type mapping each one needs.
+// table; entries are `{schema}/{table}.{column}`, the table part a glob.
 let contributedToABaseTable =
     Codegen.contributeTo
-        [ "xmin" ]
+        (List.map Codegen.parseEntry [ "public/users.xmin" ])
         { Table =
             { Catalog = ""
               Schema = "public"
