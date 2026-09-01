@@ -54,7 +54,7 @@ let ``a raw fragment is left alone`` () =
 [<Fact>]
 let ``the write placeholder is not a version anyone could have read`` () =
     // Pinned so nobody "tidies" it into a value the database could plausibly return.
-    Assert.Equal(0u, SystemColumns.unwrittenSystemColumn)
+    Assert.Equal(0u, SystemColumns.notAVersion)
 
 // The tests above cover `expandProjection` in isolation. These drive the custom
 // operation itself — the thing callers actually write — by compiling a real query to
@@ -270,3 +270,19 @@ let ``an expression that is not a column is refused`` () =
         |> ignore
 
     Assert.ThrowsAny<Exception>(build) |> ignore
+
+[<Fact>]
+let ``the lambda's parameter name is free`` () =
+    // The alias comes from the query's projection, not from the selector, so naming the
+    // lambda parameter something other than the table binding still works. Taking it
+    // from the selector made the parameter name load-bearing.
+    let sql =
+        sqlOf (
+            select {
+                for u in usersTable do
+                    select u
+                    withSystemColumns (fun anythingAtAll -> anythingAtAll.xmin)
+            }
+        )
+
+    Assert.Contains("\"u\".*, \"u\".\"xmin\"", sql)

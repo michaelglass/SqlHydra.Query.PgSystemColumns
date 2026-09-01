@@ -62,5 +62,5 @@ let main _ =
     printfn "read with version:\n  %s\n" (sqlOf userWithVersion)
     printfn "expandProjection: %A\n" expandedByHand
     printfn "compare-and-swap predicate is a plain column comparison; no extension needed."
-    printfn "write-shaped placeholder: %i" unwrittenSystemColumn
+    printfn "write-shaped placeholder: %i" notAVersion
     0
