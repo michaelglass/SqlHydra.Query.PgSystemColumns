@@ -2,7 +2,8 @@
 ///
 /// `SELECT u.*` does not return a system column, so a generated record carrying an
 /// `xmin` field fails to hydrate on every whole-entity read. `withSystemColumns` names
-/// the column explicitly:
+/// the column explicitly, as a lambda over the selected row —
+/// `withSystemColumns (fun u -> u.xmin)`:
 ///
 ///     SELECT "u".*      becomes      SELECT "u".*, "u"."xmin"
 ///
@@ -74,15 +75,30 @@ module SystemColumns =
 
         type SqlHydra.Query.SelectBuilders.SelectBuilder<'Selected, 'Mapped> with
 
-            /// Projects a system column alongside the whole entity. Name the column;
-            /// the compiler checks it exists on the row.
+            /// Projects a system column alongside the whole entity. Name the column
+            /// with a LAMBDA over the selected row; the compiler checks it exists.
             ///
             ///     selectTask ctx {
             ///         for u in ``public``.users do
             ///             where (u.id = userId)
             ///             select u
-            ///             withSystemColumns u.xmin
+            ///             withSystemColumns (fun u -> u.xmin)
             ///     }
+            ///
+            /// WHY A LAMBDA, and not the bare `withSystemColumns u.xmin` an
+            /// `[<ProjectionParameter>]` would give. This operation must follow
+            /// `select`, and `select` is the one operation that CHANGES the builder's
+            /// row type while KEEPING the computation expression's variable space
+            /// (`MaintainsVariableSpace = true`). In a JOIN the two therefore disagree:
+            /// after `select u` the state's row is `users`, but the variable space is
+            /// still the join tuple `(u, s)`. An `[<ProjectionParameter>]` is elaborated
+            /// against the VARIABLE SPACE, so it would be handed the tuple while its
+            /// signature demanded the row — and every joined read failed to compile with
+            /// "expected 'users' but is a tuple of type ''a * 'b'". A plain lambda
+            /// argument is elaborated against the parameter's own type instead, so it
+            /// sees the SELECTED ROW in both shapes. Overloading on the tuple was tried
+            /// and does not work: F# resolves same-named custom operations to the last
+            /// declaration rather than per call site, so one shape always broke.
             ///
             /// Must follow `select u`, whose `SELECT u.*` it expands. Placing it before
             /// `select` raises at query construction. Placing it after a scalar select
@@ -90,10 +106,8 @@ module SystemColumns =
             /// `u.xmin` is a type error.
             [<CustomOperation("withSystemColumns", MaintainsVariableSpace = true)>]
             member _.WithSystemColumns
-                (
-                    state: QuerySource<'T, SelectQueryIR>,
-                    [<ProjectionParameter>] columnSelector: Expression<Func<'T, 'Prop>>
-                ) : QuerySource<'T, SelectQueryIR> =
+                (state: QuerySource<'T, SelectQueryIR>, columnSelector: Expression<Func<'T, 'Prop>>)
+                : QuerySource<'T, SelectQueryIR> =
                 let ir = state.Query
 
                 let projectsWholeEntity =
@@ -120,4 +134,5 @@ module SystemColumns =
                 // Unreachable through the computation expression: SqlHydra's selector
                 // reader raises on a non-column expression before it can return None.
                 // Kept because the match must be total, not as a guard anyone will hit.
-                | None -> failwith "withSystemColumns expects a single column, as in `withSystemColumns u.xmin`."
+                | None ->
+                    failwith "withSystemColumns expects a single column, as in `withSystemColumns (fun u -> u.xmin)`."

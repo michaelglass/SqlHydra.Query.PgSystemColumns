@@ -78,7 +78,7 @@ let userWithVersion =
         for u in usersTable do
             where (u.id = userId)
             select u
-            withSystemColumns u.xmin
+            withSystemColumns (fun u -> u.xmin)
     }
 
 // Compare-and-swap: the version you read goes into the predicate. If someone else wrote
@@ -100,6 +100,25 @@ let guardedUpdate (expectedVersion: uint32) =
 construction rather than returning a row without the column. Placing it after a
 scalar select does not compile at all — after `select u.email` the row type is
 `string`, so naming `u.xmin` is a type error.
+
+The column is named with a **lambda over the selected row**, not as a bare
+`u.xmin`. That is what makes the operation usable in a **join**. `select` is the
+one operation that changes the builder's row type while keeping the computation
+expression's variable space, so after `select u` in a joined query the row is
+`users` while the variable space is still the tuple `(u, s)`. An
+`[<ProjectionParameter>]` is elaborated against the variable space, so the bare
+form would be handed the tuple and every joined read would fail to compile
+("expected `users` but is a tuple of type `'a * 'b`"). A plain lambda argument is
+elaborated against its own parameter type — the selected row — in both shapes:
+
+```fsharp
+select {
+    for u in usersTable do
+        join s in userSettingsTable on (u.id = s.user_id)
+        select u
+        withSystemColumns (fun u -> u.xmin)   // SELECT "u".*, "u"."xmin", "s".* untouched
+}
+```
 
 ## What this package does not need to do
 

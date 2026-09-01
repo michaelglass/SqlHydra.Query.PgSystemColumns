@@ -37,7 +37,7 @@ let userWithVersion =
         for u in usersTable do
             where (u.id = userId)
             select u
-            withSystemColumns u.xmin
+            withSystemColumns (fun u -> u.xmin)
     }
 
 // Compare-and-swap: the version you read goes into the predicate. If someone else wrote
