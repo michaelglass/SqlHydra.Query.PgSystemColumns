@@ -49,7 +49,8 @@ type PostgresFixture() =
                 }
             )
 
-        member _.DisposeAsync() : ValueTask = ValueTask(container.DisposeAsync().AsTask())
+        member _.DisposeAsync() : ValueTask =
+            ValueTask(container.DisposeAsync().AsTask())
 
 [<Trait("Category", "Integration")>]
 type IntegrationTests(fixture: PostgresFixture) =
@@ -59,7 +60,16 @@ type IntegrationTests(fixture: PostgresFixture) =
     /// rewritten to @pN and bound in order, by value.
     let command (conn: NpgsqlConnection) (compiled: {| Sql: string; Parameters: obj seq |}) =
         let mutable i = -1
-        let sql = Regex.Replace(compiled.Sql, @"\?", (fun _ -> i <- i + 1; $"@p{i}"))
+
+        let sql =
+            Regex.Replace(
+                compiled.Sql,
+                @"\?",
+                (fun _ ->
+                    i <- i + 1
+                    $"@p{i}")
+            )
+
         let cmd = new NpgsqlCommand(sql, conn)
 
         compiled.Parameters
@@ -72,11 +82,16 @@ type IntegrationTests(fixture: PostgresFixture) =
 
     let compiled (q: SelectQuery) =
         let c = q.CompileWith emitter
-        {| Sql = c.Sql; Parameters = c.Parameters |> Seq.map box |}
+
+        {| Sql = c.Sql
+           Parameters = c.Parameters |> Seq.map box |}
 
     let seedRow (conn: NpgsqlConnection) (name: string) =
         let id = Guid.NewGuid()
-        use cmd = new NpgsqlCommand($"insert into public.widgets (id, name) values (@i, @n)", conn)
+
+        use cmd =
+            new NpgsqlCommand($"insert into public.widgets (id, name) values (@i, @n)", conn)
+
         cmd.Parameters.AddWithValue("i", id) |> ignore
         cmd.Parameters.AddWithValue("n", name) |> ignore
         cmd.ExecuteNonQuery() |> ignore
@@ -95,7 +110,7 @@ type IntegrationTests(fixture: PostgresFixture) =
                 for w in ``public``.widgets do
                     where (w.id = id)
                     select w
-                    withSystemColumns w.xmin
+                    withSystemColumns (fun w -> w.xmin)
             }
 
         use cmd = command conn (compiled q)
@@ -123,7 +138,9 @@ type IntegrationTests(fixture: PostgresFixture) =
         use cmd = command conn (compiled q)
         use reader = cmd.ExecuteReader()
         Assert.True(reader.Read())
-        Assert.Throws<IndexOutOfRangeException>(fun () -> reader.GetOrdinal "xmin" |> ignore) |> ignore
+
+        Assert.Throws<IndexOutOfRangeException>(fun () -> reader.GetOrdinal "xmin" |> ignore)
+        |> ignore
 
     [<Fact>]
     member _.``a stale version loses the write and a current one wins``() =
@@ -142,7 +159,10 @@ type IntegrationTests(fixture: PostgresFixture) =
 
             cmd.Parameters.AddWithValue("n", newName) |> ignore
             cmd.Parameters.AddWithValue("i", id) |> ignore
-            cmd.Parameters.Add(NpgsqlParameter("x", NpgsqlTypes.NpgsqlDbType.Xid, Value = expected)) |> ignore
+
+            cmd.Parameters.Add(NpgsqlParameter("x", NpgsqlTypes.NpgsqlDbType.Xid, Value = expected))
+            |> ignore
+
             cmd.ExecuteNonQuery()
 
         let version = currentVersion ()

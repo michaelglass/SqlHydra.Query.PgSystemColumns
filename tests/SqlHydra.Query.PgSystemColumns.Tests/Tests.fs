@@ -81,7 +81,17 @@ type users =
       [<ProviderDbType("Oid")>]
       tableoid: uint32 }
 
+[<CLIMutable>]
+type user_settings =
+    { [<ProviderDbType("Uuid")>]
+      id: Guid
+      [<ProviderDbType("Uuid")>]
+      user_id: Guid
+      [<ProviderDbType("Boolean")>]
+      auto_brief_enabled: bool }
+
 let private usersTable = table<users>
+let private userSettingsTable = table<user_settings>
 let private emitter = PostgresEmitter() :> ISqlEmitter
 let private sqlOf (query: SelectQuery) = (query.CompileWith emitter).Sql
 
@@ -93,7 +103,7 @@ let ``the emitted SQL names the system column alongside the entity`` () =
                 for u in usersTable do
                     where (u.id = Guid.Empty)
                     select u
-                    withSystemColumns u.xmin
+                    withSystemColumns (fun u -> u.xmin)
             }
         )
 
@@ -122,7 +132,7 @@ let ``placed before select, it is refused at query-construction time`` () =
         select {
             for u in usersTable do
                 where (u.id = Guid.Empty)
-                withSystemColumns u.xmin
+                withSystemColumns (fun u -> u.xmin)
                 select u
         }
         |> ignore
@@ -140,7 +150,7 @@ let ``every PostgreSQL system column can be projected`` () =
             select {
                 for u in usersTable do
                     select u
-                    withSystemColumns u.xmin
+                    withSystemColumns (fun u -> u.xmin)
             }
         )
     )
@@ -151,7 +161,7 @@ let ``every PostgreSQL system column can be projected`` () =
             select {
                 for u in usersTable do
                     select u
-                    withSystemColumns u.xmax
+                    withSystemColumns (fun u -> u.xmax)
             }
         )
     )
@@ -162,7 +172,7 @@ let ``every PostgreSQL system column can be projected`` () =
             select {
                 for u in usersTable do
                     select u
-                    withSystemColumns u.cmin
+                    withSystemColumns (fun u -> u.cmin)
             }
         )
     )
@@ -173,7 +183,7 @@ let ``every PostgreSQL system column can be projected`` () =
             select {
                 for u in usersTable do
                     select u
-                    withSystemColumns u.cmax
+                    withSystemColumns (fun u -> u.cmax)
             }
         )
     )
@@ -184,7 +194,7 @@ let ``every PostgreSQL system column can be projected`` () =
             select {
                 for u in usersTable do
                     select u
-                    withSystemColumns u.ctid
+                    withSystemColumns (fun u -> u.ctid)
             }
         )
     )
@@ -195,7 +205,7 @@ let ``every PostgreSQL system column can be projected`` () =
             select {
                 for u in usersTable do
                     select u
-                    withSystemColumns u.tableoid
+                    withSystemColumns (fun u -> u.tableoid)
             }
         )
     )
@@ -207,8 +217,8 @@ let ``chaining projects every column named, and only those`` () =
             select {
                 for u in usersTable do
                     select u
-                    withSystemColumns u.xmin
-                    withSystemColumns u.ctid
+                    withSystemColumns (fun u -> u.xmin)
+                    withSystemColumns (fun u -> u.ctid)
             }
         )
 
@@ -217,6 +227,32 @@ let ``chaining projects every column named, and only those`` () =
     // The control: a column that was NOT named stays absent, so chaining adds rather
     // than opening the floodgates.
     Assert.DoesNotContain("tableoid", sql)
+
+[<Fact>]
+let ``a joined read projects the system column of the table it was selected from`` () =
+    // THE REGRESSION THIS SHAPE EXISTS FOR. `select` is the one operation that changes
+    // the builder's row type while keeping the CE's variable space, so in a join the two
+    // disagree: after `select u` the row is `users`, but the variable space is still the
+    // tuple `(u, s)`. While the column selector was an `[<ProjectionParameter>]` it was
+    // elaborated against the variable space and every joined read failed to COMPILE —
+    // "expected 'users' but is a tuple of type ''a * 'b'". A plain lambda argument is
+    // elaborated against its own parameter type, which is the selected row in both
+    // shapes. A compile error cannot be asserted, so this test existing and compiling
+    // IS the assertion; the SQL below pins that the right table grew.
+    let sql =
+        sqlOf (
+            select {
+                for u in usersTable do
+                    join s in userSettingsTable on (u.id = s.user_id)
+                    where (s.auto_brief_enabled = true)
+                    select u
+                    withSystemColumns (fun u -> u.xmin)
+            }
+        )
+
+    Assert.Contains("\"u\".*, \"u\".\"xmin\"", sql)
+    // The joined table is not handed a column that belongs to the other one.
+    Assert.DoesNotContain("\"s\".\"xmin\"", sql)
 
 [<Fact>]
 let ``an expression that is not a column is refused`` () =
@@ -228,7 +264,7 @@ let ``an expression that is not a column is refused`` () =
         select {
             for u in usersTable do
                 select u
-                withSystemColumns (u.xmin + 1u)
+                withSystemColumns (fun u -> u.xmin + 1u)
         }
         |> ignore
 
