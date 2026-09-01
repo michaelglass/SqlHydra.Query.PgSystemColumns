@@ -5,16 +5,20 @@ open SqlHydra.Query.PgSystemColumns.SystemColumns
 
 open System
 open SqlHydra
+open SqlHydra.Domain
+open SqlHydra.Query.PgSystemColumns
 
-// In a real app `dotnet sqlhydra` generates this record. `xmin` is a PostgreSQL system
-// column: the database owns it, `SELECT u.*` does not return it, and it changes on every
-// write to the row — which is what makes it a version.
+// `dotnet sqlhydra` generates this record, `xmin` included, once the codegen half of this
+// package is registered in the TOML `[extensions]` section. Both attributes are emitted by
+// the generator: `[<ProviderDbType("Xid")>]` because Npgsql has no default mapping for
+// uint32, and `[<ReadOnlyColumn>]` because the database owns the value.
 [<CLIMutable>]
 type users =
     { [<ProviderDbType("Uuid")>]
       id: Guid
       [<ProviderDbType("Text")>]
       email: string
+      [<ReadOnlyColumn>]
       [<ProviderDbType("Xid")>]
       xmin: uint32 }
 
@@ -42,16 +46,42 @@ let userWithVersion =
 
 // Compare-and-swap: the version you read goes into the predicate. If someone else wrote
 // first, `xmin` no longer matches, the UPDATE affects zero rows, and you can refuse the
-// edit instead of silently overwriting theirs. No extension is needed for this — it is an
-// ordinary column comparison, and `[<ProviderDbType("Xid")>]` binds the parameter as
-// `xid`.
-let guardedUpdate (expectedVersion: uint32) =
+// edit instead of silently overwriting theirs. An ordinary column comparison —
+// `[<ProviderDbType("Xid")>]` is what binds the parameter as `xid`.
+let guardedUpdate (row: users) =
     update {
         for u in usersTable do
             set u.email "new@example.com"
-            where (u.id = userId && u.xmin = expectedVersion)
+            where (u.id = row.id && u.xmin = row.xmin)
+    }
+
+// Writing a row you read back needs no `excludeColumn`: `[<ReadOnlyColumn>]` keeps `xmin`
+// out of the SET clause, so the version you are comparing against cannot also be assigned.
+let insertNew () =
+    let row =
+        { id = Guid.NewGuid()
+          email = "new@example.com"
+          xmin = notAVersion }
+
+    insert {
+        into usersTable
+        entity row
     }
 // sync:usage-queries:end
+
+// The codegen half, driven directly. `contributeTo` is what the generator calls, once per
+// table; `Codegen.all` is the six columns with the type mapping each one needs.
+let contributedToABaseTable =
+    Codegen.contributeTo
+        [ "xmin" ]
+        { Table =
+            { Catalog = ""
+              Schema = "public"
+              Name = "users"
+              Type = TableType.Table
+              Columns = []
+              TotalColumns = 0 }
+          Provider = ProviderType.Npgsql }
 
 // The projection rewrite is public and pure, so you can drive it directly — useful if
 // you are writing your own operation over a select's IR.
@@ -61,6 +91,21 @@ let expandedByHand = expandProjection ("u", "xmin") [ SelectColumn.AllColumns "u
 let main _ =
     printfn "read with version:\n  %s\n" (sqlOf userWithVersion)
     printfn "expandProjection: %A\n" expandedByHand
+
+    printfn "contributed to a base table: %A" (contributedToABaseTable |> List.map _.Name)
+
+    for col in contributedToABaseTable do
+        printfn
+            "  %s: %s, providerDbType=%A, readOnly=%b"
+            col.Name
+            col.TypeMapping.ClrType
+            col.TypeMapping.ProviderDbType
+            col.IsReadOnly
+
+    printfn ""
     printfn "compare-and-swap predicate is a plain column comparison; no extension needed."
-    printfn "write-shaped placeholder: %i" notAVersion
+    printfn "the write side needs no excludeColumn; [<ReadOnlyColumn>] does it."
+    printfn "record-construction placeholder: %i" notAVersion
+    ignore (guardedUpdate { id = userId; email = ""; xmin = 1u })
+    ignore (insertNew ())
     0

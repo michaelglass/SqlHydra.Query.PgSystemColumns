@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>netstandard2.0;net8.0;net9.0;net10.0</TargetFrameworks>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -26,17 +26,20 @@
          consumer can step into this source. The non-colocated-jj guard that keeps a local
          build working without a `.git` directory lives in the root Directory.Build.props. -->
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.301" PrivateAssets="All" />
-    <!-- Stable 4.1.1, never a prerelease: a prerelease floor drags every consumer onto a
-         prerelease of the host library, and a floor can only be raised by breaking whoever
-         pinned to it. SelectQueryIR, SelectColumn and SelectBuilder are the public surface
-         this package builds on. -->
-    <PackageReference Include="SqlHydra.Query" Version="4.1.1" />
+    <!-- BRANCH ONLY: a prerelease floor drags every consumer onto a prerelease of the
+         host library, so this must go back to a stable version before release. It points at
+         a locally packed SqlHydra carrying both unreleased halves (see NuGet.config):
+         `IContributeColumns` and `Column.Doc` from the contribution seam, and
+         `Column.ReadOnly` from the read-only work. None exist in 4.1.1. SelectQueryIR,
+         SelectColumn and SelectBuilder remain the query-side surface. -->
+    <PackageReference Include="SqlHydra.Query" Version="4.2.0-seam.1" />
   </ItemGroup>
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="SystemColumns.fs" />
+    <Compile Include="Codegen.fs" />
   </ItemGroup>
   <ItemGroup>
     <!-- Per-TFM FSharp.Core floors, lowest each TFM supports (mirroring SqlHydra.Query's).
