@@ -1,0 +1,36 @@
+name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  build:
+    uses: michaelglass/MichaelsWackyFsPackageTools/.github/workflows/michaels-wacky-build.yml@main
+    with:
+      solution: SqlHydra.Query.PgSystemColumns.slnx
+      fantomas-paths: "src/ tests/ examples/"
+      # The "Build examples" step is controlled by `example-projects`, which is
+      # left at its default here: empty means auto-discover every project under
+      # examples/, which is what this scaffold wants. Pin it to a space-separated
+      # list of project paths, or set it to "none", if you drop examples/.
+      # Reusable-workflow inputs are validated by GitHub: passing a name the
+      # called workflow does not declare fails the run before anything compiles.
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+
+  # The project linter runs as its own JOB, not as a mise task. A gate that lives
+  # only in the task runner is not on the path CI executes — that is how nine
+  # repos shipped four failing fsprojlint checks unnoticed.
+  lint-project:
+    uses: michaelglass/MichaelsWackyFsPackageTools/.github/workflows/michaels-wacky-lint-project.yml@main
+    permissions:
+      contents: read

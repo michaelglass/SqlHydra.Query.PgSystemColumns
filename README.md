@@ -1,0 +1,112 @@
+# SqlHydra.Query.PgSystemColumns
+
+<!-- sync:intro:start -->
+PostgreSQL system columns — `xmin` — inside the `SqlHydra.Query` computation
+expression.
+<!-- sync:intro:end -->
+
+`SELECT u.*` does not return a system column. So a generated record that carries
+an `xmin` field fails to hydrate on every whole-entity read, and the usual
+workaround is a hand-written SQL statement for each site that needs the version.
+
+This package adds one operation that names the column explicitly:
+
+```
+SELECT "u".*      becomes      SELECT "u".*, "u"."xmin"
+```
+
+## The columns
+
+All six of PostgreSQL's system columns work. The operation names whichever column you
+give it, so nothing is specific to `xmin`, and you can chain it to project more than one.
+
+| Column | Type | What it is |
+| --- | --- | --- |
+| `tableoid` | `oid` | Which table the row came from. Useful with partitioned tables and inheritance. |
+| `xmin` | `xid` | The inserting transaction — the row version. |
+| `cmin` | `cid` | Command id within the inserting transaction. |
+| `xmax` | `xid` | The deleting transaction, or `0` for a live row. |
+| `cmax` | `cid` | Command id within the deleting transaction. |
+| `ctid` | `tid` | Physical location of this row version. |
+
+**`ctid` is not a row identifier** — it is a physical address, and it changes when the row
+is updated or moved by `VACUUM FULL`. Use `xmin` for concurrency and a primary key for
+identity. See [system columns](https://www.postgresql.org/docs/current/ddl-system-columns.html).
+
+## Why you would want `xmin`
+
+It is PostgreSQL's row version, and it changes on every write to the row. That
+makes optimistic concurrency a plain column comparison: read the version, then
+include it in the `WHERE` of your update. If someone else wrote first the
+version no longer matches, the `UPDATE` affects zero rows, and you can refuse
+the edit instead of silently overwriting theirs. No locks, no re-read.
+
+## Install
+
+```bash
+dotnet add package SqlHydra.Query.PgSystemColumns
+```
+
+Your generated record needs the field. `xmin` is a `uint32`, and
+`[<ProviderDbType("Xid")>]` is what makes the comparison bind natively:
+
+```fsharp
+[<ProviderDbType("Xid")>]
+xmin: uint32
+```
+
+## Usage
+
+<!-- sync:usage-opens:start src=examples/ExampleApp/Program.fs -->
+```fsharp
+open SqlHydra.Query
+open SqlHydra.Query.PgSystemColumns.SystemColumns
+```
+<!-- sync:usage-opens:end -->
+
+<!-- sync:usage-queries:start src=examples/ExampleApp/Program.fs -->
+```fsharp
+// Read a row together with its version. Without `withSystemColumns` the emitted SQL is
+// `SELECT "u".*`, which omits `xmin`, and hydrating a record that declares the field
+// fails.
+let userWithVersion =
+    select {
+        for u in usersTable do
+            where (u.id = userId)
+            select u
+            withSystemColumns u.xmin
+    }
+
+// Compare-and-swap: the version you read goes into the predicate. If someone else wrote
+// first, `xmin` no longer matches, the UPDATE affects zero rows, and you can refuse the
+// edit instead of silently overwriting theirs. No extension is needed for this — it is an
+// ordinary column comparison, and `[<ProviderDbType("Xid")>]` binds the parameter as
+// `xid`.
+let guardedUpdate (expectedVersion: uint32) =
+    update {
+        for u in usersTable do
+            set u.email "new@example.com"
+            where (u.id = userId && u.xmin = expectedVersion)
+    }
+```
+<!-- sync:usage-queries:end -->
+
+`withSystemColumns` must follow `select u`, because it expands the
+`SELECT u.*` that `select` emits. Placing it earlier raises at query
+construction rather than returning a row without the column. Placing it after a
+scalar select does not compile at all — after `select u.email` the row type is
+`string`, so naming `u.xmin` is a type error.
+
+## What this package does not need to do
+
+**Writes.** `excludeColumn u.xmin` ships with `SqlHydra.Query` and drops the
+column from an `INSERT` column list or an `UPDATE SET` clause. The database owns
+the value, so give the field `unwrittenSystemColumn` in a record you are about
+to write — it is never sent and never read back.
+
+**The guard itself.** The comparison in the example above is an ordinary column
+comparison. It needs nothing from this package.
+
+## License
+
+MIT

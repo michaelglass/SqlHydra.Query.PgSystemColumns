@@ -1,0 +1,9 @@
+{
+  "overrides": {
+    "SystemColumns.fs": {
+      "line": 89.2,
+      "branch": 78.5,
+      "reason": "The uncovered residue is three lines that no test can reach. `unwrittenSystemColumn` is a literal binding, so it is inlined and never executes. The `RawColumn` arm of the whole-entity predicate cannot be constructed through the computation expression. The `None` arm of the column-selector match is unreachable because SqlHydra's own selector reader raises on a non-column expression before it can return None — pinned by `an expression that is not a column is refused`, which asserts the raise rather than the arm."
+    }
+  }
+}
