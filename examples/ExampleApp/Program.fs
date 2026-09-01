@@ -53,9 +53,14 @@ let guardedUpdate (expectedVersion: uint32) =
     }
 // sync:usage-queries:end
 
+// The projection rewrite is public and pure, so you can drive it directly — useful if
+// you are writing your own operation over a select's IR.
+let expandedByHand = expandProjection ("u", "xmin") [ SelectColumn.AllColumns "u" ]
+
 [<EntryPoint>]
 let main _ =
     printfn "read with version:\n  %s\n" (sqlOf userWithVersion)
+    printfn "expandProjection: %A\n" expandedByHand
     printfn "compare-and-swap predicate is a plain column comparison; no extension needed."
     printfn "write-shaped placeholder: %i" unwrittenSystemColumn
     0

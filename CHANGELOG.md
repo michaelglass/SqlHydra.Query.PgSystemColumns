@@ -6,4 +6,24 @@ promoted to the new version heading on release.
 
 ## Unreleased
 
-- feat: initial release.
+- feat: **`withSystemColumns` — project a PostgreSQL system column alongside the whole entity.**
+  `SELECT u.*` does not return a system column, so a generated record carrying an `xmin` field
+  fails to hydrate on every whole-entity read. `select u` followed by `withSystemColumns u.xmin`
+  emits `SELECT "u".*, "u"."xmin"` instead. Chain it to project more than one.
+
+- feat: **all six system columns are supported** — `tableoid`, `xmin`, `cmin`, `xmax`, `cmax` and
+  `ctid`. You name the column, so nothing in the operation is specific to any of them, and the
+  compiler checks the field exists on your row. Note that `ctid` is a physical address, not a row
+  identifier: it changes when the row is updated or moved by `VACUUM FULL`.
+
+- feat: **`unwrittenSystemColumn`** — the value to give a system-column field in a record you are
+  about to write, to be paired with the built-in `excludeColumn`. The database owns the column, so
+  the value is never sent and never read back.
+
+- feat: **`expandProjection`** — the projection rewrite as a pure function over a select's columns,
+  public so you can drive it directly or reuse it in your own operation. It matches on the table
+  alias, so a joined query expands only the table the column belongs to.
+
+- docs: the write side and the concurrency comparison itself need nothing from this package.
+  `excludeColumn` already ships with `SqlHydra.Query`, and `where (u.id = id && u.xmin = expected)`
+  is an ordinary column comparison.
