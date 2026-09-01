@@ -36,18 +36,19 @@ open SqlHydra.Query
 /// `withSystemColumns` into the `select` / `selectTask` computation expression.
 module SystemColumns =
 
-    /// The value to give a system-column field in a record you are about to WRITE.
-    /// The database owns the column, so pair it with `excludeColumn`:
+    /// The value to give a system-column field in a record you are about to WRITE, paired
+    /// with the built-in `excludeColumn` so the column never reaches the statement:
     ///
-    ///     let row = { existing with xmin = unwrittenSystemColumn }
+    ///     let row = { existing with xmin = notAVersion }
     ///     updateTask ctx { for u in ``public``.users do
     ///                      setColumns row
     ///                      excludeColumn u.xmin
     ///                      where (u.id = id) }
     ///
-    /// It is never sent and never read back. Do not compare against it — only a value
-    /// read from the database carries meaning.
-    let unwrittenSystemColumn: uint32 = 0u
+    /// Named so that misuse reads wrong: `where (u.xmin = notAVersion)` compiles — the
+    /// field is a plain `uint32`, so nothing can stop it — but says what it is. Only a
+    /// value read back from the database is a version.
+    let notAVersion: uint32 = 0u
 
     /// Appends the system column to the whole-entity projection of its OWN table.
     ///
@@ -110,41 +111,36 @@ module SystemColumns =
                 : QuerySource<'T, SelectQueryIR> =
                 let ir = state.Query
 
-                let projectsWholeEntity =
+                // A `select u` emits exactly one whole-entity projection, even in a join,
+                // so the alias is never ambiguous. Taking it from the projection rather
+                // than from the selector leaves the lambda's parameter name free.
+                let wholeEntityAliases =
                     ir.Select
-                    |> List.exists (fun column ->
-                        match column with
-                        | SelectColumn.AllColumns _ -> true
-                        | SelectColumn.SpecificColumn _
-                        | SelectColumn.RawColumn _ -> false)
+                    |> List.choose (function
+                        | SelectColumn.AllColumns alias -> Some alias
+                        | _ -> None)
 
-                if not projectsWholeEntity then
+                let systemColumn =
+                    match SelectBuilders.ExtensionHelpers.tryGetOrderByColumn columnSelector with
+                    | Some(_, column) -> column
+                    | None ->
+                        failwith
+                            "withSystemColumns expects a single column, as in `withSystemColumns (fun u -> u.xmin)`."
+
+                match wholeEntityAliases with
+                | [ tableAlias ] ->
+                    QuerySource<'T, SelectQueryIR>(
+                        { ir with
+                            Select = expandProjection (tableAlias, systemColumn) ir.Select },
+                        state.TableMappings
+                    )
+                | [] ->
                     failwith (
                         "withSystemColumns: this query has no whole-entity projection to expand yet. Move it AFTER "
                         + "`select <row>`, which is what emits the `SELECT alias.*` this expands."
                     )
+                | many ->
+                    let aliases = String.concat ", " many
 
-                match SelectBuilders.ExtensionHelpers.tryGetOrderByColumn columnSelector with
-                | Some(tableAlias, systemColumn) ->
-                    let expanded = expandProjection (tableAlias, systemColumn) ir.Select
-
-                    // An alias that names no projected table would otherwise expand
-                    // nothing and emit `SELECT "u".*` without the column — a silent miss
-                    // that surfaces later as a hydration error naming the wrong thing.
-                    if expanded = ir.Select then
-                        let projected =
-                            ir.Select
-                            |> List.choose (function
-                                | SelectColumn.AllColumns alias -> Some alias
-                                | _ -> None)
-                            |> String.concat ", "
-
-                        failwith
-                            $"withSystemColumns: %s{tableAlias}.%s{systemColumn} does not belong to any table this query projects (%s{projected}). Name a column of the row you selected."
-
-                    QuerySource<'T, SelectQueryIR>({ ir with Select = expanded }, state.TableMappings)
-                // Unreachable through the computation expression: SqlHydra's selector
-                // reader raises on a non-column expression before it can return None.
-                // Kept because the match must be total, not as a guard anyone will hit.
-                | None ->
-                    failwith "withSystemColumns expects a single column, as in `withSystemColumns (fun u -> u.xmin)`."
+                    failwith
+                        $"withSystemColumns: this query projects %d{many.Length} whole entities (%s{aliases}); which one to expand is ambiguous."

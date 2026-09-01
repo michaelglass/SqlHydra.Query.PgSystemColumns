@@ -21,9 +21,11 @@ promoted to the new version heading on release.
   compiler checks the field exists on your row. Note that `ctid` is a physical address, not a row
   identifier: it changes when the row is updated or moved by `VACUUM FULL`.
 
-- feat: **`unwrittenSystemColumn`** — the value to give a system-column field in a record you are
-  about to write, to be paired with the built-in `excludeColumn`. The database owns the column, so
-  the value is never sent and never read back.
+- feat: **`notAVersion`** — the value to give a system-column field in a record you are about
+  to write, paired with the built-in `excludeColumn`. Named so that misuse reads wrong:
+  `where (u.xmin = notAVersion)` compiles, because the generated field is a plain `uint32`
+  and nothing outside the generator can change that. Only a value read back from the
+  database is a version.
 
 - feat: **`expandProjection`** — the projection rewrite as a pure function over a select's columns,
   public so you can drive it directly or reuse it in your own operation. It matches on the table

@@ -124,7 +124,7 @@ select {
 
 **Writes.** `excludeColumn u.xmin` ships with `SqlHydra.Query` and drops the
 column from an `INSERT` column list or an `UPDATE SET` clause. The database owns
-the value, so give the field `unwrittenSystemColumn` in a record you are about
+the value, so give the field `notAVersion` in a record you are about
 to write — it is never sent and never read back.
 
 **The guard itself.** The comparison in the example above is an ordinary column
