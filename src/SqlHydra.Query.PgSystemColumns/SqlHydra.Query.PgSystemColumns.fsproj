@@ -38,4 +38,13 @@
   <ItemGroup>
     <Compile Include="SystemColumns.fs" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Per-TFM FSharp.Core floors, lowest each TFM supports (mirroring SqlHydra.Query's).
+         Left implicit, the F# SDK floats this to whatever the build SDK bundles — a
+         non-deterministic, needlessly high floor that breaks consumers pinned lower. -->
+    <PackageReference Update="FSharp.Core" Version="6.0.7" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
+    <PackageReference Update="FSharp.Core" Version="8.0.100" Condition="'$(TargetFramework)' == 'net8.0'" />
+    <PackageReference Update="FSharp.Core" Version="9.0.201" Condition="'$(TargetFramework)' == 'net9.0'" />
+    <PackageReference Update="FSharp.Core" Version="10.1.201" Condition="'$(TargetFramework)' == 'net10.0'" />
+  </ItemGroup>
 </Project>

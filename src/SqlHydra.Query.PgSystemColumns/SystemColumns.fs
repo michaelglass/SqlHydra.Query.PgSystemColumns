@@ -126,11 +126,23 @@ module SystemColumns =
 
                 match SelectBuilders.ExtensionHelpers.tryGetOrderByColumn columnSelector with
                 | Some(tableAlias, systemColumn) ->
-                    QuerySource<'T, SelectQueryIR>(
-                        { ir with
-                            Select = expandProjection (tableAlias, systemColumn) ir.Select },
-                        state.TableMappings
-                    )
+                    let expanded = expandProjection (tableAlias, systemColumn) ir.Select
+
+                    // An alias that names no projected table would otherwise expand
+                    // nothing and emit `SELECT "u".*` without the column — a silent miss
+                    // that surfaces later as a hydration error naming the wrong thing.
+                    if expanded = ir.Select then
+                        let projected =
+                            ir.Select
+                            |> List.choose (function
+                                | SelectColumn.AllColumns alias -> Some alias
+                                | _ -> None)
+                            |> String.concat ", "
+
+                        failwith
+                            $"withSystemColumns: %s{tableAlias}.%s{systemColumn} does not belong to any table this query projects (%s{projected}). Name a column of the row you selected."
+
+                    QuerySource<'T, SelectQueryIR>({ ir with Select = expanded }, state.TableMappings)
                 // Unreachable through the computation expression: SqlHydra's selector
                 // reader raises on a non-column expression before it can return None.
                 // Kept because the match must be total, not as a guard anyone will hit.
