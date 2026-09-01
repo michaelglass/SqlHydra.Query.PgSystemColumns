@@ -37,18 +37,19 @@ let ``a named column is left alone`` () =
     Assert.Equal<SelectColumn list>(columns, SystemColumns.expandProjection ("u", "xmin") columns)
 
 [<Fact>]
+let ``expandProjection leaves an unmatched alias alone; the operation is what refuses`` () =
+    // As a pure function this is total: it expands what matches and returns the rest
+    // unchanged. The custom operation checks for exactly this outcome and raises, so a
+    // caller never gets a silent `SELECT "u".*` missing the column.
+    let columns = [ SelectColumn.AllColumns "u" ]
+
+    Assert.Equal<SelectColumn list>(columns, SystemColumns.expandProjection ("o", "xmin") columns)
+
+[<Fact>]
 let ``a raw fragment is left alone`` () =
     let columns = [ SelectColumn.RawColumn("count(*) over ()", [||]) ]
 
     Assert.Equal<SelectColumn list>(columns, SystemColumns.expandProjection ("u", "xmin") columns)
-
-[<Fact>]
-let ``a column from a table this query does not project changes nothing`` () =
-    // Documents a silent no-op: naming `o.xmin` when only `u.*` is projected adds nothing
-    // rather than producing `o.xmin` against a table that is not in the select.
-    let columns = [ SelectColumn.AllColumns "u" ]
-
-    Assert.Equal<SelectColumn list>(columns, SystemColumns.expandProjection ("o", "xmin") columns)
 
 [<Fact>]
 let ``the write placeholder is not a version anyone could have read`` () =
