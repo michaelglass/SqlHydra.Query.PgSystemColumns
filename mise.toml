@@ -1,0 +1,119 @@
+[tools]
+# Pin the SDK. Unpinned, a local run compiles with whatever dotnet happens to be
+# on PATH while CI uses the reusable build workflow's `dotnet-version` default
+# (10.0.x) — the two must not drift.
+dotnet = "10"
+
+[tasks.tool-restore]
+description = "Restore the local dotnet tools"
+run = "dotnet tool restore"
+
+[tasks.build]
+description = "Build the solution"
+run = "dotnet build SqlHydra.Query.PgSystemColumns.slnx"
+depends = ["tool-restore"]
+
+[tasks.test]
+description = "Run tests"
+run = "dotnet test --solution SqlHydra.Query.PgSystemColumns.slnx"
+
+[tasks.test-coverage]
+description = "Run tests and emit cobertura where the coverage ratchet reads it"
+# The directory name is load-bearing: the reusable CI workflow derives it from the
+# test project folder minus the ".Tests" suffix, and then looks for a matching
+# coverage-ratchet-<name>.json at the repo root. Keep one ratchet config per test
+# project, named to match, or CI's ratchet step cds into a directory that is
+# never produced and fails.
+run = """
+dotnet test --project tests/SqlHydra.Query.PgSystemColumns.Tests/SqlHydra.Query.PgSystemColumns.Tests.fsproj \
+  --coverage \
+  --coverage-output-format cobertura \
+  --coverage-output "$PWD/coverage/SqlHydra.Query.PgSystemColumns/coverage.cobertura.xml"
+"""
+
+[tasks.coverage-check]
+description = "Check per-file coverage against coverage-ratchet-SqlHydra.Query.PgSystemColumns.json"
+run = "(cd coverage/SqlHydra.Query.PgSystemColumns && dotnet tool run coverageratchet check ../../coverage-ratchet-SqlHydra.Query.PgSystemColumns.json)"
+depends = ["test-coverage"]
+
+[tasks.coverage-ratchet]
+description = "Tighten the coverage floors to current values"
+run = "(cd coverage/SqlHydra.Query.PgSystemColumns && dotnet tool run coverageratchet ratchet ../../coverage-ratchet-SqlHydra.Query.PgSystemColumns.json)"
+depends = ["test-coverage"]
+
+[tasks.coverage-loosen]
+description = "Add a floor for this platform from current coverage (a file with no entry defaults to 100%/100%)"
+run = "(cd coverage/SqlHydra.Query.PgSystemColumns && dotnet tool run coverageratchet loosen ../../coverage-ratchet-SqlHydra.Query.PgSystemColumns.json)"
+depends = ["test-coverage"]
+
+[tasks.format]
+description = "Format with Fantomas"
+run = "dotnet fantomas src/ tests/ examples/"
+
+[tasks.format-check]
+description = "Check formatting without rewriting"
+run = "dotnet fantomas --check src/ tests/ examples/"
+
+[tasks.lint]
+description = "Run FSharpLint"
+run = "dotnet fsharplint lint SqlHydra.Query.PgSystemColumns.slnx"
+
+[tasks.lint-project]
+description = "Lint repo + fsproj structure for NuGet OSS readiness (the same tool CI's lint-project job runs)"
+run = "dotnet tool run fsprojlint"
+depends = ["tool-restore"]
+
+[tasks.sync-docs]
+description = "Sync README sections into docs/"
+run = "dotnet tool run syncdocs sync"
+
+[tasks.sync-docs-check]
+description = "Fail if docs/ is out of sync with the README"
+run = "dotnet tool run syncdocs check"
+
+[tasks.docs]
+description = "Generate API documentation"
+run = "dotnet fsdocs build --parameters root /SqlHydra.Query.PgSystemColumns/"
+
+[tasks.check]
+description = "Run all checks with auto-fix"
+depends = ["format", "sync-docs", "lint", "lint-project", "build", "coverage-check", "docs"]
+
+[tasks.ci]
+description = "Run every check CI runs, in CI's order, with no auto-fix"
+# Keep this in step with .github/workflows/ci.yml. A local `ci` that runs a
+# different set from real CI can go green on work CI will reject — which is the
+# whole reason fsprojlint is here as well as a job in the workflow.
+run = [
+  "dotnet tool restore",
+  "dotnet restore",
+  "dotnet fantomas --check src/ tests/ examples/",
+  "dotnet tool run syncdocs check",
+  "dotnet build SqlHydra.Query.PgSystemColumns.slnx --warnaserror --no-restore",
+  "dotnet fsharplint lint SqlHydra.Query.PgSystemColumns.slnx",
+  "dotnet fsdocs build --output output/docs --clean",
+  'dotnet test --project tests/SqlHydra.Query.PgSystemColumns.Tests/SqlHydra.Query.PgSystemColumns.Tests.fsproj --coverage --coverage-output-format cobertura --coverage-output "$PWD/coverage/SqlHydra.Query.PgSystemColumns/coverage.cobertura.xml"',
+  "(cd coverage/SqlHydra.Query.PgSystemColumns && dotnet tool run coverageratchet check ../../coverage-ratchet-SqlHydra.Query.PgSystemColumns.json)",
+  "dotnet tool run fsprojlint",
+]
+
+[tasks.pack]
+description = "Create the NuGet package (RefStamp suffixes a local pack with the jj/git source ref)"
+run = "dotnet pack src/SqlHydra.Query.PgSystemColumns/SqlHydra.Query.PgSystemColumns.fsproj -c Release -o artifacts/"
+
+[tasks.release]
+description = "Tag a release; the bump level is derived from the public API diff"
+run = "dotnet tool run fssemantictagger release"
+depends = ["ci"]
+
+[tasks.release-dry-run]
+description = "Preview a release without mutating (no tag, no publish)"
+run = "dotnet tool run fssemantictagger release --dry-run"
+
+[tasks.release-alpha]
+description = "Start a new alpha pre-release cycle"
+run = "dotnet tool run fssemantictagger alpha"
+
+[tasks.changelog-check]
+description = "Fail if the '## Unreleased' CHANGELOG section cannot support a release"
+run = "dotnet tool run fssemantictagger release --check"

@@ -1,0 +1,9 @@
+bin/
+obj/
+output/
+artifacts/
+coverage/
+.fsdocs/
+
+# Claude
+.claude/settings.local.json

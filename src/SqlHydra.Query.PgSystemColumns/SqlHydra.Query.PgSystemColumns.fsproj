@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0;net9.0;net10.0</TargetFrameworks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningLevel>5</WarningLevel>
+    <WarnOn>3390;1104;0020;0044;0025;3391;0067;0021;1182</WarnOn>
+    <NoWarn>$(NoWarn);NU1605;MSB3277;NETSDK1188</NoWarn>
+  </PropertyGroup>
+  <PropertyGroup>
+    <PackageId>SqlHydra.Query.PgSystemColumns</PackageId>
+    <Version>0.1.0-alpha.1</Version>
+    <Authors>Michael Glass</Authors>
+    <Description>PostgreSQL system columns (xmin) inside the SqlHydra.Query computation expression</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/michaelglass/SqlHydra.Query.PgSystemColumns</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <PackageTags>F# fsharp sql sqlhydra postgresql xmin system-columns optimistic-concurrency</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- SourceLink stamps the published package with the commit it was built from, so a
+         consumer can step into this source. The non-colocated-jj guard that keeps a local
+         build working without a `.git` directory lives in the root Directory.Build.props. -->
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.301" PrivateAssets="All" />
+    <!-- Stable 4.1.1, never a prerelease: a prerelease floor drags every consumer onto a
+         prerelease of the host library, and a floor can only be raised by breaking whoever
+         pinned to it. SelectQueryIR, SelectColumn and SelectBuilder are the public surface
+         this package builds on. -->
+    <PackageReference Include="SqlHydra.Query" Version="4.1.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="SystemColumns.fs" />
+  </ItemGroup>
+</Project>

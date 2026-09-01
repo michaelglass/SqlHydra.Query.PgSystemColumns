@@ -1,0 +1,20 @@
+<Project>
+  <PropertyGroup>
+    <!-- SourceLink guard for a NON-COLOCATED jj checkout (`jj git init`, no `.git`
+         at the root). Without it the Microsoft.Build.Tasks.Git
+         "InitializeSourceControlInformation" target hard-fails with "Unable to
+         locate repository" and the repo cannot pack itself locally.
+         EnableSourceControlManagerQueries=false is required ALONGSIDE
+         EnableSourceLink=false — disabling SourceLink alone still runs that
+         target. Both conditions only fire when `.git` is absent, so CI and
+         colocated checkouts keep full source-debugging metadata. -->
+    <EnableSourceLink Condition="!Exists('$(MSBuildThisFileDirectory).git')">false</EnableSourceLink>
+    <EnableSourceControlManagerQueries Condition="!Exists('$(MSBuildThisFileDirectory).git')">false</EnableSourceControlManagerQueries>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- RefStamp: a LOCAL `dotnet pack` derives its version from the jj/git source
+         ref, so a dev machine cannot produce a release-shaped version. One line
+         here covers every project in the repo. -->
+    <PackageReference Include="RefStamp" Version="0.1.0-alpha.2" PrivateAssets="all" />
+  </ItemGroup>
+</Project>
