@@ -84,12 +84,79 @@ let ``a name that is not a system column fails, naming the six`` () =
     Assert.Contains("xmin", ex.Message)
 
 // ---------------------------------------------------------------------------------------
-// When they are contributed
+// The grammar: {schema}/{table}.{column}
 // ---------------------------------------------------------------------------------------
 
 [<Fact>]
-let ``a PostgreSQL base table gets the named columns`` () =
-    let contributed = Codegen.contributeTo [ "xmin"; "tableoid" ] npgsqlTable
+let ``an entry names a table and a column`` () =
+    let pattern, col = Codegen.parseEntry "sales/currency.xmin"
+
+    Assert.Equal("sales/currency", pattern)
+    Assert.Equal("xmin", col.Name)
+
+[<Fact>]
+let ``an entry is split at the last dot`` () =
+    // A schema or table may contain a dot; a system-column name never does.
+    let pattern, col = Codegen.parseEntry "odd.schema/odd.table.xmin"
+
+    Assert.Equal("odd.schema/odd.table", pattern)
+    Assert.Equal("xmin", col.Name)
+
+[<Fact>]
+let ``a bare column name is refused, and the message shows the grammar`` () =
+    // The old global form. It has to fail rather than mean "every table": contributing a
+    // system column to a table nobody asked about breaks every whole-entity read of it.
+    let ex =
+        Assert.Throws<System.Exception>(fun () -> Codegen.parseEntry "xmin" |> ignore)
+
+    Assert.Contains("{schema}/{table}.{column}", ex.Message)
+
+// ---------------------------------------------------------------------------------------
+// When they are contributed
+// ---------------------------------------------------------------------------------------
+
+let private entries = List.map Codegen.parseEntry
+
+[<Fact>]
+let ``a named table gets the column`` () =
+    let contributed =
+        Codegen.contributeTo (entries [ "public/widgets.xmin" ]) npgsqlTable
+
+    Assert.Equal<string list>([ "xmin" ], contributed |> List.map _.Name)
+
+[<Fact>]
+let ``a table nobody named gets nothing`` () =
+    Assert.Empty(Codegen.contributeTo (entries [ "public/users.xmin" ]) npgsqlTable)
+
+[<Fact>]
+let ``the table part is a glob`` () =
+    let contributed = Codegen.contributeTo (entries [ "public/*.xmin" ]) npgsqlTable
+
+    Assert.Equal<string list>([ "xmin" ], contributed |> List.map _.Name)
+
+[<Fact>]
+let ``a glob does not cross the schema separator`` () =
+    // `public/*` must not match `other/widgets`; the schema is part of the path.
+    let other =
+        { npgsqlTable with
+            Table =
+                { table TableType.Table with
+                    Schema = "other" } }
+
+    Assert.Empty(Codegen.contributeTo (entries [ "public/*.xmin" ]) other)
+
+[<Fact>]
+let ``two entries matching one table contribute the column once`` () =
+    // Overlapping globs are ordinary; a duplicated field would not compile.
+    let contributed =
+        Codegen.contributeTo (entries [ "public/*.xmin"; "public/widgets.xmin" ]) npgsqlTable
+
+    Assert.Equal<string list>([ "xmin" ], contributed |> List.map _.Name)
+
+[<Fact>]
+let ``several columns on one table all arrive`` () =
+    let contributed =
+        Codegen.contributeTo (entries [ "public/widgets.xmin"; "public/widgets.tableoid" ]) npgsqlTable
 
     Assert.Equal<string list>([ "xmin"; "tableoid" ], contributed |> List.map _.Name)
 
@@ -97,86 +164,54 @@ let ``a PostgreSQL base table gets the named columns`` () =
 let ``a view gets nothing`` () =
     // `SELECT xmin FROM a_view` is an error unless the view projects one, so contributing
     // here would generate a record that cannot be read.
-    Assert.Empty(Codegen.contributeTo [ "xmin" ] (ctx ProviderType.Npgsql TableType.View))
+    Assert.Empty(Codegen.contributeTo (entries [ "public/*.xmin" ]) (ctx ProviderType.Npgsql TableType.View))
 
 [<Fact>]
 let ``another provider gets nothing`` () =
     // What keeps the extension harmless in a project that also generates for SQLite.
-    Assert.Empty(Codegen.contributeTo [ "xmin" ] (ctx ProviderType.Sqlite TableType.Table))
+    Assert.Empty(Codegen.contributeTo (entries [ "public/*.xmin" ]) (ctx ProviderType.Sqlite TableType.Table))
 
 // ---------------------------------------------------------------------------------------
 // The extension the generator loads
 // ---------------------------------------------------------------------------------------
 
-[<Fact>]
-let ``XminColumn contributes xmin and nothing else`` () =
-    // What registering this package in [extensions] gets you, with no code in your project.
-    let ext = Codegen.XminColumn() :> IContributeColumns
-    let contributed = ext.Contribute (fun _ -> []) npgsqlTable
-
-    Assert.Equal<string list>([ "xmin" ], contributed |> List.map _.Name)
+/// The only shape available: there is no safe blanket default, and `[extensions]` has nowhere
+/// to put a setting, so the choice is a type in the consumer's own project.
+type GuardedSystemColumns() =
+    inherit Codegen.PgSystemColumns([ "public/widgets.xmin" ])
 
 [<Fact>]
-let ``an extension preserves what earlier extensions contributed`` () =
-    // The seam composes in registration order; dropping the base call would silently discard
-    // a co-registered extension's columns.
-    let earlier = Codegen.column "ctid"
-    let ext = Codegen.XminColumn() :> IContributeColumns
-    let contributed = ext.Contribute (fun _ -> [ earlier ]) npgsqlTable
+let ``a subclass contributes to the tables it names`` () =
+    let ext = GuardedSystemColumns() :> IContributeColumns
 
-    Assert.Equal<string list>([ "ctid"; "xmin" ], contributed |> List.map _.Name)
-
-/// How a consumer asks for something other than `xmin`: subclass, in their own project, with a
-/// parameterless constructor for the generator's `Activator.CreateInstance` to find.
-type CustomSystemColumns() =
-    inherit Codegen.PgSystemColumns([ "xmin"; "tableoid" ])
-
-/// The shape a consumer needs when only some tables are versioned.
-type GuardedTablesOnly() =
-    inherit Codegen.PgSystemColumns([ "xmin" ], Codegen.onlyTables [ "users"; "orders" ])
+    Assert.Equal<string list>([ "xmin" ], ext.Contribute (fun _ -> []) npgsqlTable |> List.map _.Name)
 
 [<Fact>]
-let ``a custom set is a two-line subclass`` () =
-    let ext = CustomSystemColumns() :> IContributeColumns
-    let contributed = ext.Contribute (fun _ -> []) npgsqlTable
+let ``a subclass leaves other tables alone`` () =
+    let ext = GuardedSystemColumns() :> IContributeColumns
 
-    Assert.Equal<string list>([ "xmin"; "tableoid" ], contributed |> List.map _.Name)
-
-[<Fact>]
-let ``a table the predicate rejects gets nothing`` () =
-    // A system column costs something at every use site: `SELECT t.*` does not return it, so a
-    // table that carries the field and is read whole must project it or fail to hydrate.
-    // Contributing to every table would break every whole-entity read in a codebase that
-    // versions three of them.
-    let ext = GuardedTablesOnly() :> IContributeColumns
-
-    Assert.Empty(ext.Contribute (fun _ -> []) npgsqlTable)
-
-[<Fact>]
-let ``a table the predicate accepts gets the column`` () =
-    let ext = GuardedTablesOnly() :> IContributeColumns
-
-    // The fixture table is `widgets`, which the predicate rejects; `users` it accepts.
     let users =
         { npgsqlTable with
             Table =
                 { table TableType.Table with
                     Name = "users" } }
 
-    Assert.Equal<string list>([ "xmin" ], ext.Contribute (fun _ -> []) users |> List.map _.Name)
+    Assert.Empty(ext.Contribute (fun _ -> []) users)
 
 [<Fact>]
-let ``onlyTables matches regardless of case`` () =
-    let predicate = Codegen.onlyTables [ "Widgets" ]
+let ``an extension preserves what earlier extensions contributed`` () =
+    // The seam composes in registration order; dropping the base call would silently discard
+    // a co-registered extension's columns.
+    let ext = GuardedSystemColumns() :> IContributeColumns
+    let earlier = Codegen.column "ctid"
 
-    Assert.True(
-        predicate
-            { table TableType.Table with
-                Name = "widgets" }
-    )
+    Assert.Equal<string list>([ "ctid"; "xmin" ], ext.Contribute (fun _ -> [ earlier ]) npgsqlTable |> List.map _.Name)
 
-    Assert.False(
-        predicate
-            { table TableType.Table with
-                Name = "gadgets" }
-    )
+[<Fact>]
+let ``a misspelled column fails when the extension is constructed`` () =
+    // Before the generator opens a connection, rather than at the first read that hydrates
+    // the record -- a long way from the typo that caused it.
+    let ex =
+        Assert.Throws<System.Exception>(fun () -> Codegen.parseEntry "public/widgets.xmim" |> ignore)
+
+    Assert.Contains("xmin", ex.Message)
