@@ -11,6 +11,22 @@ permissions:
   pull-requests: write
 
 jobs:
+  # The dependency-floor assertion runs as its own JOB, first and independent of
+  # the build: a floor that is only declared in the fsproj (or only checked by a
+  # local mise task) decays at the first routine bump. The script exits non-zero
+  # when the SqlHydra.Query floor is a prerelease or is not the stable release.
+  package-metadata:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Verify package metadata
+        run: dotnet fsi tests/verify-package-metadata.fsx
+
   build:
     uses: michaelglass/MichaelsWackyFsPackageTools/.github/workflows/michaels-wacky-build.yml@main
     with:

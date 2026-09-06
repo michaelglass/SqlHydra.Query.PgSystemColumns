@@ -18,9 +18,10 @@ docs/               fsdocs content; docs/index.md is generated from README.md
 
 ## Before you claim done
 
-Run `mise run ci`. It runs, in CI's order: format check, docs sync check, build
-with `--warnaserror`, FSharpLint, fsdocs, tests with coverage, the coverage
-ratchet, and fsprojlint. Keep it in step with `.github/workflows/ci.yml` — a
+Run `mise run ci`. It runs, in CI's order: the package-metadata check (the
+SqlHydra.Query floor must be the stable host release), format check, docs sync
+check, build with `--warnaserror`, FSharpLint, fsdocs, tests with coverage, the
+coverage ratchet, and fsprojlint. Keep it in step with `.github/workflows/ci.yml` — a
 local `ci` that runs a different set from real CI can go green on work CI will
 reject.
 
@@ -42,13 +43,15 @@ mise run lint-project     mise run sync-docs         mise run sync-docs-check
 mise run coverage-check   mise run coverage-ratchet  mise run coverage-loosen
 mise run docs             mise run pack              mise run check / ci
 mise run release          mise run release-dry-run   mise run release-alpha
-mise run changelog-check
+mise run changelog-check  mise run test-package-metadata
 ```
 
 ## CI
 
-`.github/workflows/ci.yml` calls two reusable workflows from the shared tooling
-repo — `michaels-wacky-build.yml` and `michaels-wacky-lint-project.yml`.
+`.github/workflows/ci.yml` runs a `package-metadata` job of its own
+(`tests/verify-package-metadata.fsx`) and calls two reusable workflows from the
+shared tooling repo — `michaels-wacky-build.yml` and
+`michaels-wacky-lint-project.yml`.
 
 Two things to know before editing it:
 
