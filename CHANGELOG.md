@@ -6,6 +6,11 @@ promoted to the new version heading on release.
 
 ## Unreleased
 
+- chore: **the SqlHydra.Query dependency floor is asserted, not just declared.**
+  `tests/verify-package-metadata.fsx` fails when the floor is a prerelease or is not the stable
+  host release (4.1.1). It runs as its own CI job on every push and pull request and in the
+  local `check`/`ci` tasks, so a routine bump cannot quietly move consumers onto a prerelease.
+
 ## 0.1.0-alpha.1 - 2026-09-01
 
 - feat: **`withSystemColumns` — project a PostgreSQL system column alongside the whole entity.**
