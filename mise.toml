@@ -27,6 +27,7 @@ description = "Run tests and emit cobertura where the coverage ratchet reads it"
 run = """
 dotnet test --project tests/SqlHydra.Query.PgSystemColumns.Tests/SqlHydra.Query.PgSystemColumns.Tests.fsproj \
   --coverage \
+  --coverage-settings coverage.settings.xml \
   --coverage-output-format cobertura \
   --coverage-output "$PWD/coverage/SqlHydra.Query.PgSystemColumns/coverage.cobertura.xml"
 """
@@ -97,7 +98,7 @@ run = [
   "dotnet build SqlHydra.Query.PgSystemColumns.slnx --warnaserror --no-restore",
   "dotnet fsharplint lint SqlHydra.Query.PgSystemColumns.slnx",
   "dotnet fsdocs build --output output/docs --clean",
-  'dotnet test --project tests/SqlHydra.Query.PgSystemColumns.Tests/SqlHydra.Query.PgSystemColumns.Tests.fsproj --coverage --coverage-output-format cobertura --coverage-output "$PWD/coverage/SqlHydra.Query.PgSystemColumns/coverage.cobertura.xml"',
+  'dotnet test --project tests/SqlHydra.Query.PgSystemColumns.Tests/SqlHydra.Query.PgSystemColumns.Tests.fsproj --coverage --coverage-settings coverage.settings.xml --coverage-output-format cobertura --coverage-output "$PWD/coverage/SqlHydra.Query.PgSystemColumns/coverage.cobertura.xml"',
   "(cd coverage/SqlHydra.Query.PgSystemColumns && dotnet tool run coverageratchet check ../../coverage-ratchet-SqlHydra.Query.PgSystemColumns.json)",
   "dotnet tool run fsprojlint",
 ]

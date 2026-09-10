@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Coverage collects only this repo's own assemblies.
+
+     BRANCH ONLY, in practice: on `main` the SqlHydra.Query package comes from nuget.org and
+     its PDBs point at source paths that do not exist here, so the collector cannot attribute
+     it and it never reaches the report. This branch references a SqlHydra.Query packed on
+     this machine, PDBs and all, so without this exclusion every file of the host library
+     lands in the cobertura report and the ratchet fails 25 files it has no business judging.
+
+     The rule itself is right either way: a coverage ratchet should measure the code this
+     repo owns, not its dependencies. -->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="Code Coverage">
+        <Configuration>
+          <CodeCoverage>
+            <ModulePaths>
+              <Include>
+                <ModulePath>.*SqlHydra\.Query\.PgSystemColumns\.dll$</ModulePath>
+              </Include>
+            </ModulePaths>
+          </CodeCoverage>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

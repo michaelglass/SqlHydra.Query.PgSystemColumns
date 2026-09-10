@@ -18,6 +18,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Tests.fs" />
+    <Compile Include="CodegenTests.fs" />
     <Compile Include="IntegrationTests.fs" />
   </ItemGroup>
   <ItemGroup>

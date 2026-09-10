@@ -6,6 +6,45 @@ promoted to the new version heading on release.
 
 ## Unreleased
 
+- feat: **the generator emits the column — no hand-written field, no text overlay.**
+  `Codegen.PgSystemColumns` implements SqlHydra's `IContributeColumns`, so the tables you name
+  get their system columns from `dotnet sqlhydra npgsql` itself, with `[<ProviderDbType("Xid")>]`
+  and a doc comment on the field. A system column is not in `information_schema`, so
+  `IExtendTypeMapping` could never reach it: a type mapping only fires for a column the provider
+  already discovered. Until now the only way in was to write the field by hand, or to rewrite the
+  generated file after the generator had written it.
+
+- feat: **system columns are named per table, in the `{schema}/{table}.{column}` grammar**
+  (`[ "person/address.xmin"; "sales/*.xmin" ]`), the table part a glob — the same grammar
+  SqlHydra's `[filters]` uses. Subclass `Codegen.PgSystemColumns` with a parameterless
+  constructor in the project the generator runs over, and register **that project** in the TOML
+  `[extensions]` section. A bare `"xmin"`, a malformed entry, or a column that is not one of the
+  six fails when the extension is constructed, before the generator opens a connection.
+
+- feat: **`Codegen.all`, `Codegen.column`, `Codegen.parseEntry` and `Codegen.contributeTo`** —
+  the six columns and the contribution decision as plain values and pure functions, so you can
+  drive them directly. `contributeTo` returns nothing for a view (`SELECT xmin FROM a_view` is an
+  error unless the view projects one) and nothing for a non-PostgreSQL provider.
+
+- change: **there is no zero-configuration default, and `Codegen.PgSystemColumns` is abstract.**
+  Registering this package alone in `[extensions]` does nothing. A blanket default would have to
+  contribute to every base table, and that is not neutral — it breaks every table it touches,
+  because `SELECT t.*` does not return a system column and a record that declares the field fails
+  to hydrate on every whole-entity read. Since SqlHydra's `[extensions]` section is a bare list of
+  assembly names with nowhere to put a setting, the choice has to be a type in the consumer's own
+  project.
+
+- change: **the write side needs no `excludeColumn`.** A contributed system column is marked
+  read-only, and SqlHydra 5.0 splits a table with read-only columns into a read record and a
+  companion `{table}_write` record, so the column cannot reach an `INSERT` column list or an
+  `UPDATE SET` clause at all.
+
+- change: **BRANCH ONLY — requires a SqlHydra carrying the `IContributeColumns` seam**
+  (`SqlHydra.Query`/`SqlHydra.Cli` `5.1.0-seam.1`, packed locally from `ext/contribute-columns`;
+  see `NuGet.config`). `tests/verify-package-metadata.fsx` carries a matching, single-constant
+  exception. Both must go back to a stable release before this ships. The query half alone still
+  works against the released `SqlHydra.Query` 5.0.0.
+
 ## 0.1.0-alpha.2 - 2026-09-10
 
 - chore: **the SqlHydra.Query dependency floor is asserted, not just declared.**

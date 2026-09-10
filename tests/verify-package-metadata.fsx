@@ -18,6 +18,17 @@ open System.Xml.Linq
 
 let expectedFloor = "5.0.0"
 
+/// BRANCH ONLY. The one prerelease this check will accept, and only when the fsproj
+/// declares it exactly.
+///
+/// The `ext/contribute-columns` seam (`IContributeColumns`, `ColumnContributionContext`,
+/// `Column.Doc`) is not in any released SqlHydra, so this branch has to point at a locally
+/// packed build. Everything the check exists to prevent still applies -- this pin must not
+/// reach a release -- so the exception is one named constant here rather than a relaxed
+/// rule: set it back to `None`, and the fsproj back to a stable floor, and the check goes
+/// back to refusing every prerelease.
+let branchOnlyFloor: string option = Some "5.1.0-seam.1"
+
 let projectPath =
     IO.Path.Combine(
         __SOURCE_DIRECTORY__,
@@ -65,6 +76,13 @@ let fail (reason: string) =
     eprintfn $"  declared: SqlHydra.Query Version=\"{declared}\" (floor {floor})"
     eprintfn $"  expected: the stable host release {expectedFloor}"
     exit 1
+
+match branchOnlyFloor with
+| Some allowed when floor = allowed ->
+    printfn $"verify-package-metadata: SqlHydra.Query floor is the BRANCH-ONLY prerelease {floor}."
+    printfn "  This must not be released. Put the floor back to a stable version, and branchOnlyFloor back to None."
+    exit 0
+| _ -> ()
 
 if floor.Contains "-" then
     fail "the SqlHydra.Query floor is a PRERELEASE; a prerelease floor drags every consumer onto a prerelease host."
