@@ -6,6 +6,10 @@ promoted to the new version heading on release.
 
 ## Unreleased
 
+- docs: the README said this package needs SqlHydra.Query 4.1.1 or later. It has required 5.0.0
+  since 0.1.0-alpha.2, so the published page was telling readers a floor the package does not
+  accept.
+
 ## 0.1.0-alpha.2 - 2026-09-10
 
 - chore: **the SqlHydra.Query dependency floor is asserted, not just declared.**
