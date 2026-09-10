@@ -6,6 +6,8 @@ promoted to the new version heading on release.
 
 ## Unreleased
 
+## 0.1.0-alpha.2 - 2026-09-10
+
 - chore: **the SqlHydra.Query dependency floor is asserted, not just declared.**
   `tests/verify-package-metadata.fsx` fails when the floor is a prerelease or is not the stable
   host release (5.0.0). It runs as its own CI job on every push and pull request and in the
