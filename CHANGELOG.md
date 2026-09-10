@@ -8,9 +8,15 @@ promoted to the new version heading on release.
 
 - chore: **the SqlHydra.Query dependency floor is asserted, not just declared.**
   `tests/verify-package-metadata.fsx` fails when the floor is a prerelease or is not the stable
-  host release (4.1.1). It runs as its own CI job on every push and pull request and in the
+  host release (5.0.0). It runs as its own CI job on every push and pull request and in the
   local `check`/`ci` tasks, so a routine bump cannot quietly move consumers onto a prerelease.
-
+- feat!: **require SqlHydra.Query 5.0.0.** SqlHydra 5.0 is a major release, so a consumer of
+  this package moves to it too rather than staying on 4.1.x. Nothing in this package's own
+  surface changes: it builds and its tests pass against 5.0.0 unmodified, so the bump is the
+  whole change.
+- chore: bump Microsoft.SourceLink.GitHub to 10.0.401, which carries a Microsoft.Build.Tasks.Git
+  without the GHSA-23fw-v26w-5fgq advisory. Unrelated to the SqlHydra bump; the audit failed the
+  build on the old pin either way.
 ## 0.1.0-alpha.1 - 2026-09-01
 
 - feat: **`withSystemColumns` — project a PostgreSQL system column alongside the whole entity.**
