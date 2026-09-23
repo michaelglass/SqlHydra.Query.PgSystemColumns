@@ -173,4 +173,6 @@ module Codegen =
 
         interface IContributeColumns with
             member this.Contribute(baseFn) =
-                fun ctx -> baseFn ctx @ contributeTo this.Entries ctx
+                // `ReadOnly`, every one: PostgreSQL refuses `INSERT INTO t (xmin)` and
+                // `SET xmin = ...` outright, and this keeps them off the `{table}_write` record.
+                fun ctx -> baseFn ctx @ (contributeTo this.Entries ctx |> List.map ContributedColumn.ReadOnly)

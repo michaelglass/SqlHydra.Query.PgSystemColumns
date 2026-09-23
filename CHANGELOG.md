@@ -40,7 +40,7 @@ promoted to the new version heading on release.
   `UPDATE SET` clause at all.
 
 - change: **BRANCH ONLY — requires a SqlHydra carrying the `IContributeColumns` seam**
-  (`SqlHydra.Query`/`SqlHydra.Cli` `5.1.0-seam.1`, packed locally from `ext/contribute-columns`;
+  (`SqlHydra.Query`/`SqlHydra.Cli` `5.1.0-seam.2`, packed locally from `ext/contribute-columns`;
   see `NuGet.config`). `tests/verify-package-metadata.fsx` carries a matching, single-constant
   exception. Both must go back to a stable release before this ships. The query half alone still
   works against the released `SqlHydra.Query` 5.0.0.

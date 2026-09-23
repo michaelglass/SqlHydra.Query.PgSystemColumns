@@ -27,7 +27,7 @@ let expectedFloor = "5.0.0"
 /// reach a release -- so the exception is one named constant here rather than a relaxed
 /// rule: set it back to `None`, and the fsproj back to a stable floor, and the check goes
 /// back to refusing every prerelease.
-let branchOnlyFloor: string option = Some "5.1.0-seam.1"
+let branchOnlyFloor: string option = Some "5.1.0-seam.2"
 
 let projectPath =
     IO.Path.Combine(

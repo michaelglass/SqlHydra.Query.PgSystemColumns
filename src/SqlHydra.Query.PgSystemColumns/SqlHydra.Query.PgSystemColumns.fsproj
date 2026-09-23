@@ -33,7 +33,7 @@
          `Column.Doc`, none of which exist in 5.0.0. `tests/verify-package-metadata.fsx`
          carries the matching branch-only exception; the two move together.
          SelectQueryIR, SelectColumn and SelectBuilder remain the query-side surface. -->
-    <PackageReference Include="SqlHydra.Query" Version="5.1.0-seam.1" />
+    <PackageReference Include="SqlHydra.Query" Version="5.1.0-seam.2" />
     <!-- Same glob engine SqlHydra.Cli uses for `[filters]`, so a `{schema}/{table}` pattern
          means exactly what it means there. A release should split the codegen half into its
          own assembly rather than put a codegen-only dependency in front of every consumer of

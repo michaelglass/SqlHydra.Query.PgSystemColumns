@@ -184,7 +184,18 @@ type GuardedSystemColumns() =
 let ``a subclass contributes to the tables it names`` () =
     let ext = GuardedSystemColumns() :> IContributeColumns
 
-    Assert.Equal<string list>([ "xmin" ], ext.Contribute (fun _ -> []) npgsqlTable |> List.map _.Name)
+    Assert.Equal<string list>([ "xmin" ], ext.Contribute (fun _ -> []) npgsqlTable |> List.map _.Column.Name)
+
+[<Fact>]
+let ``a subclass contributes every system column read-only`` () =
+    let ext = GuardedSystemColumns() :> IContributeColumns
+
+    Assert.All(
+        ext.Contribute (fun _ -> []) npgsqlTable,
+        fun contributed ->
+            match contributed with
+            | ContributedColumn.ReadOnly _ -> ()
+            | ContributedColumn.Writable col -> failwith $"{col.Name} was contributed writable")
 
 [<Fact>]
 let ``a subclass leaves other tables alone`` () =
@@ -203,9 +214,9 @@ let ``an extension preserves what earlier extensions contributed`` () =
     // The seam composes in registration order; dropping the base call would silently discard
     // a co-registered extension's columns.
     let ext = GuardedSystemColumns() :> IContributeColumns
-    let earlier = Codegen.column "ctid"
+    let earlier = ContributedColumn.ReadOnly(Codegen.column "ctid")
 
-    Assert.Equal<string list>([ "ctid"; "xmin" ], ext.Contribute (fun _ -> [ earlier ]) npgsqlTable |> List.map _.Name)
+    Assert.Equal<string list>([ "ctid"; "xmin" ], ext.Contribute (fun _ -> [ earlier ]) npgsqlTable |> List.map _.Column.Name)
 
 [<Fact>]
 let ``a misspelled column fails when the extension is constructed`` () =

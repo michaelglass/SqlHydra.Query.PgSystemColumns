@@ -123,7 +123,7 @@ nothing and failing later at the first read that hydrates the record.
 The query half needs [SqlHydra.Query](https://www.nuget.org/packages/SqlHydra.Query) 5.0.0 or
 later. The codegen half needs a [SqlHydra](https://github.com/JordanMarr/SqlHydra) carrying the
 `IContributeColumns` seam, which is not yet released — this branch builds against a locally
-packed `5.1.0-seam.1` (see `NuGet.config`).
+packed `5.1.0-seam.2` (see `NuGet.config`).
 
 ## Usage
 
