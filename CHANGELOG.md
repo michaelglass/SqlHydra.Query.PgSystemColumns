@@ -6,9 +6,9 @@ promoted to the new version heading on release.
 
 ## Unreleased
 
-- docs: the README said this package needs SqlHydra.Query 4.1.1 or later. It has required 5.0.0
-  since 0.1.0-alpha.2, so the published page was telling readers a floor the package does not
-  accept.
+- feat!: **require SqlHydra.Query 5.1.0.** Consumers on 5.0.x must move to 5.1.0. The query half
+  builds and passes its tests against 5.1.0 unmodified. The README names the new floor; the
+  published 0.1.0-alpha.2 page said 4.1.1, which the package has not accepted since that release.
 
 ## 0.1.0-alpha.2 - 2026-09-10
 

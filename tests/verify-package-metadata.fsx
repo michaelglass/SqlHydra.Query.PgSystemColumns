@@ -16,7 +16,7 @@
 open System
 open System.Xml.Linq
 
-let expectedFloor = "5.0.0"
+let expectedFloor = "5.1.0"
 
 let projectPath =
     IO.Path.Combine(
