@@ -22,10 +22,11 @@
 /// `ctid` is the one to be careful with: it is a physical address, and it changes when
 /// the row is updated or moved by VACUUM FULL. Use `xmin` for concurrency.
 ///
-/// The write side needs nothing from this package. `excludeColumn u.xmin` ships with
-/// `SqlHydra.Query` and drops the column from an INSERT column list or an UPDATE SET
-/// clause. Comparing the column is ordinary too: `where (u.id = id && u.xmin = expected)`
-/// binds natively when the generated field carries `[<ProviderDbType("Xid")>]`.
+/// The write side needs nothing from this module. A system column the generator adds (see
+/// `Codegen`) is read-only, so SqlHydra keeps it out of INSERT and UPDATE SET; on a record
+/// written by hand, `excludeColumn u.xmin` does the same. Comparing the column is ordinary
+/// too: `where (u.id = id && u.xmin = expected)` binds natively when the field carries
+/// `[<ProviderDbType("Xid")>]`.
 namespace SqlHydra.Query.PgSystemColumns
 
 open System
@@ -36,8 +37,9 @@ open SqlHydra.Query
 /// `withSystemColumns` into the `select` / `selectTask` computation expression.
 module SystemColumns =
 
-    /// The value to give a system-column field in a record you are about to WRITE, paired
-    /// with the built-in `excludeColumn` so the column never reaches the statement:
+    /// The value to give a system-column field in a hand-written record you are about to
+    /// WRITE, paired with the built-in `excludeColumn` so the column never reaches the
+    /// statement. A generated record does not need it: write its `{table}_write` record.
     ///
     ///     let row = { existing with xmin = notAVersion }
     ///     updateTask ctx { for u in ``public``.users do

@@ -1,0 +1,41 @@
+<Project>
+  <!-- Codegen: hands the project's PgSystemColumns property to the SqlHydra.Cli extension.
+
+         <PropertyGroup>
+           <PgSystemColumns>public/users.xmin;sales/*.xmin</PgSystemColumns>
+         </PropertyGroup>
+
+       A property rather than items, because MSBuild expands `*` and `?` in an item's Include
+       against the file system, and silently drops an entry that matches no file.
+
+       SqlHydra.Cli loads a registered extension from the project's bin/, and the extension has
+       no other way to learn which tables to touch: the TOML [extensions] section is a list of
+       assembly names with no settings. So this writes the entries next to the assembly, and
+       copies the assembly there, which a library project does not do for a package on its own.
+
+       Before CoreCompile rather than after Build, so a build that fails to compile, because code
+       already names a column the generated file does not have yet, still updates the entries.
+       Clearing the property deletes the file, and the extension then refuses to run rather than
+       generate without the columns. -->
+  <Target Name="PgSystemColumnsCodegen"
+          BeforeTargets="CoreCompile"
+          DependsOnTargets="ResolveAssemblyReferences"
+          Condition="'$(DesignTimeBuild)' != 'true' And '$(PgSystemColumns)' != ''">
+    <Copy SourceFiles="@(ReferencePath->WithMetadataValue('Filename','SqlHydra.Query.PgSystemColumns'))"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true" />
+    <WriteLinesToFile File="$(OutDir)SqlHydra.Query.PgSystemColumns.codegen.txt"
+                      Lines="$(PgSystemColumns)"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <FileWrites Include="$(OutDir)SqlHydra.Query.PgSystemColumns.codegen.txt" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="PgSystemColumnsCodegenCleared"
+          BeforeTargets="CoreCompile"
+          Condition="'$(DesignTimeBuild)' != 'true' And '$(PgSystemColumns)' == ''">
+    <Delete Files="$(OutDir)SqlHydra.Query.PgSystemColumns.codegen.txt" />
+  </Target>
+</Project>

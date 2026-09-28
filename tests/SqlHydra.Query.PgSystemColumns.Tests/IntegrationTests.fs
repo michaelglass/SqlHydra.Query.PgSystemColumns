@@ -11,6 +11,7 @@ open Npgsql
 open Xunit
 open SqlHydra
 open SqlHydra.Query
+open SqlHydra.Query.PgSystemColumns
 open SqlHydra.Query.PgSystemColumns.SystemColumns
 open Testcontainers.PostgreSql
 
@@ -36,7 +37,7 @@ let ExistingServerVariable = "PGSYSTEMCOLUMNS_TEST_CONNECTION"
 
 /// Where the tests run: a scratch database on a server you named, or a throwaway container.
 type private Server =
-    | Existing of admin: string * scratch: string
+    | Existing of admin: string * scratch: NpgsqlConnectionStringBuilder
     | Container of PostgreSqlContainer
 
 type PostgresFixture() =
@@ -45,10 +46,7 @@ type PostgresFixture() =
         | null
         | "" -> Container(PostgreSqlBuilder("postgres:17").Build())
         | admin ->
-            let scratch =
-                NpgsqlConnectionStringBuilder(admin, Database = $"pgsystemcolumns_test_{Guid.NewGuid():N}")
-
-            Existing(admin, scratch.ConnectionString)
+            Existing(admin, NpgsqlConnectionStringBuilder(admin, Database = $"pgsystemcolumns_test_{Guid.NewGuid():N}"))
 
     let execute (connectionString: string) (sql: string) =
         task {
@@ -58,9 +56,6 @@ type PostgresFixture() =
             let! _ = cmd.ExecuteNonQueryAsync()
             return ()
         }
-
-    let databaseOf (connectionString: string) =
-        NpgsqlConnectionStringBuilder(connectionString).Database
 
     member val ConnectionString = "" with get, set
 
@@ -73,8 +68,8 @@ type PostgresFixture() =
                         do! container.StartAsync()
                         this.ConnectionString <- container.GetConnectionString()
                     | Existing(admin, scratch) ->
-                        do! execute admin $"create database \"{databaseOf scratch}\""
-                        this.ConnectionString <- scratch
+                        do! execute admin $"create database \"{scratch.Database}\""
+                        this.ConnectionString <- scratch.ConnectionString
 
                     do!
                         execute
@@ -89,7 +84,7 @@ type PostgresFixture() =
             | Existing(admin, scratch) ->
                 // Pooled connections to the scratch database would otherwise hold it open.
                 NpgsqlConnection.ClearAllPools()
-                ValueTask(execute admin $"drop database if exists \"{databaseOf scratch}\" with (force)")
+                ValueTask(execute admin $"drop database if exists \"{scratch.Database}\" with (force)")
 
 [<Trait("Category", "Integration")>]
 type IntegrationTests(fixture: PostgresFixture) =
@@ -221,7 +216,7 @@ type IntegrationTests(fixture: PostgresFixture) =
         conn.Open()
         seedRow conn "all-columns" |> ignore
 
-        for column in [ "tableoid"; "xmin"; "cmin"; "xmax"; "cmax"; "ctid" ] do
+        for column in Codegen.names do
             let sql =
                 expandProjection ("w", column) [ SelectColumn.AllColumns "w" ]
                 |> List.map (function

@@ -6,6 +6,33 @@ promoted to the new version heading on release.
 
 ## Unreleased
 
+- feat: **the generator emits the system column; nothing patches the generated file.** Name the
+  columns in the project `sqlhydra` generates into (`<PgSystemColumns>public/users.xmin;sales/*.xmin</PgSystemColumns>`),
+  register `SqlHydra.Query.PgSystemColumns` in the TOML `[extensions]`, and `dotnet sqlhydra npgsql`
+  adds the field to each named base table with `[<ProviderDbType("Xid")>]` and a doc comment. It
+  implements SqlHydra 5.1's `IContributeColumns`. Until now the field had to be written by hand
+  or patched into the generated file, because a system column is not in `information_schema`.
+
+- feat: **a generated system column is read-only.** PostgreSQL rejects an assignment to any system
+  column, so the extension contributes each one as `ContributedColumn.ReadOnly`. SqlHydra then
+  leaves it out of `entity`'s column list and emits a `{table}_write` record without it, and no
+  `excludeColumn` is needed.
+
+- feat: **the configuration is checked before the generator reads the schema.** A registered
+  package with no entries, an entry without a schema and table (a bare `xmin`), or a column that
+  is not one of the six stops `sqlhydra` with a message saying what to write. Views and
+  providers other than PostgreSQL get nothing.
+
+- feat: **`Codegen.all`, `Codegen.column`, `Codegen.parseEntry`, `Codegen.contributeTo` and
+  `Codegen.readEntries`**: the six columns and the contribution rules as values and pure
+  functions, for writing your own `IContributeColumns`. `SystemColumnsCodegen` is the extension
+  the generator loads.
+
+- feat: **the package's MSBuild targets copy its assembly into `bin/`**, where `sqlhydra` loads an
+  extension from, so a library project needs no `CopyLocalLockFileAssemblies` or copy target for
+  it. They run before compiling, so a build that fails on a field the generated file does not
+  have yet still updates the entries.
+
 - feat!: **require SqlHydra.Query 5.1.0.** Consumers on 5.0.x must move to 5.1.0. The query half
   builds and passes its tests against 5.1.0 unmodified. The README names the new floor; the
   published 0.1.0-alpha.2 page said 4.1.1, which the package has not accepted since that release.

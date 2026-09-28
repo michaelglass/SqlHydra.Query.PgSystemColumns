@@ -11,7 +11,7 @@
     <PackageId>SqlHydra.Query.PgSystemColumns</PackageId>
     <Version>0.1.0-alpha.2</Version>
     <Authors>Michael Glass</Authors>
-    <Description>PostgreSQL system columns (xmin) inside the SqlHydra.Query computation expression</Description>
+    <Description>PostgreSQL system columns (xmin) on SqlHydra-generated records and inside the SqlHydra.Query computation expression</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/michaelglass/SqlHydra.Query.PgSystemColumns</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -34,9 +34,13 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <!-- NuGet imports build/<PackageId>.targets into every project that references the
+         package directly; it is what turns the PgSystemColumns property into codegen input. -->
+    <None Include="build/SqlHydra.Query.PgSystemColumns.targets" Pack="true" PackagePath="build/" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="SystemColumns.fs" />
+    <Compile Include="Codegen.fs" />
   </ItemGroup>
   <ItemGroup>
     <!-- Per-TFM FSharp.Core floors, lowest each TFM supports (mirroring SqlHydra.Query's).
