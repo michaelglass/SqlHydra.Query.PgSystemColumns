@@ -28,29 +28,68 @@ module ``public`` =
 
     let widgets = table<widgets>
 
+/// Names an existing server to run against instead of starting a container, for a machine
+/// with PostgreSQL but no Docker. The fixture creates a scratch database on it and drops it
+/// afterwards, so the server's own databases are never touched.
+[<Literal>]
+let ExistingServerVariable = "PGSYSTEMCOLUMNS_TEST_CONNECTION"
+
+/// Where the tests run: a scratch database on a server you named, or a throwaway container.
+type private Server =
+    | Existing of admin: string * scratch: string
+    | Container of PostgreSqlContainer
+
 type PostgresFixture() =
-    let container = PostgreSqlBuilder("postgres:17").Build()
+    let server =
+        match Environment.GetEnvironmentVariable ExistingServerVariable with
+        | null
+        | "" -> Container(PostgreSqlBuilder("postgres:17").Build())
+        | admin ->
+            let scratch =
+                NpgsqlConnectionStringBuilder(admin, Database = $"pgsystemcolumns_test_{Guid.NewGuid():N}")
+
+            Existing(admin, scratch.ConnectionString)
+
+    let execute (connectionString: string) (sql: string) =
+        task {
+            use conn = new NpgsqlConnection(connectionString)
+            do! conn.OpenAsync()
+            use cmd = new NpgsqlCommand(sql, conn)
+            let! _ = cmd.ExecuteNonQueryAsync()
+            return ()
+        }
+
+    let databaseOf (connectionString: string) =
+        NpgsqlConnectionStringBuilder(connectionString).Database
+
     member val ConnectionString = "" with get, set
 
     interface IAsyncLifetime with
         member this.InitializeAsync() : ValueTask =
             ValueTask(
                 task {
-                    do! container.StartAsync()
-                    this.ConnectionString <- container.GetConnectionString()
-                    use conn = new NpgsqlConnection(this.ConnectionString)
-                    do! conn.OpenAsync()
+                    match server with
+                    | Container container ->
+                        do! container.StartAsync()
+                        this.ConnectionString <- container.GetConnectionString()
+                    | Existing(admin, scratch) ->
+                        do! execute admin $"create database \"{databaseOf scratch}\""
+                        this.ConnectionString <- scratch
 
-                    use cmd =
-                        new NpgsqlCommand("create table public.widgets (id uuid primary key, name text not null)", conn)
-
-                    let! _ = cmd.ExecuteNonQueryAsync()
-                    return ()
+                    do!
+                        execute
+                            this.ConnectionString
+                            "create table public.widgets (id uuid primary key, name text not null)"
                 }
             )
 
         member _.DisposeAsync() : ValueTask =
-            ValueTask(container.DisposeAsync().AsTask())
+            match server with
+            | Container container -> ValueTask(container.DisposeAsync().AsTask())
+            | Existing(admin, scratch) ->
+                // Pooled connections to the scratch database would otherwise hold it open.
+                NpgsqlConnection.ClearAllPools()
+                ValueTask(execute admin $"drop database if exists \"{databaseOf scratch}\" with (force)")
 
 [<Trait("Category", "Integration")>]
 type IntegrationTests(fixture: PostgresFixture) =

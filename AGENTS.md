@@ -25,6 +25,11 @@ coverage ratchet, and fsprojlint. Keep it in step with `.github/workflows/ci.yml
 local `ci` that runs a different set from real CI can go green on work CI will
 reject.
 
+The integration tests start PostgreSQL in a container through Testcontainers, so they need
+Docker. On a machine with a PostgreSQL server but no Docker, name the server instead:
+`PGSYSTEMCOLUMNS_TEST_CONNECTION="Host=localhost;Port=54320;Database=postgres;Username=postgres;Password=postgres" mise run ci`.
+The tests create a scratch database on it and drop it when they finish.
+
 `mise run check` is the same ground with auto-fix (it formats and syncs docs
 rather than failing on them).
 
