@@ -6,6 +6,8 @@ promoted to the new version heading on release.
 
 ## Unreleased
 
+## 0.1.0-alpha.3 - 2026-09-28
+
 - feat: **the generator emits the system column; nothing patches the generated file.** Name the
   columns in the project `sqlhydra` generates into (`<PgSystemColumns>public/users.xmin;sales/*.xmin</PgSystemColumns>`),
   register `SqlHydra.Query.PgSystemColumns` in the TOML `[extensions]`, and `dotnet sqlhydra npgsql`
