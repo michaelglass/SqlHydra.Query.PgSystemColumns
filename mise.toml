@@ -60,7 +60,10 @@ run = "dotnet fsharplint lint SqlHydra.Query.PgSystemColumns.slnx"
 
 [tasks.test-package-metadata]
 description = "Assert the SqlHydra.Query dependency floor is the stable host release (also a CI job)"
-run = "dotnet fsi tests/verify-package-metadata.fsx"
+run = [
+  "dotnet fsi tests/verify-package-metadata.fsx",
+  "dotnet fsi tests/verify-package-metadata.cases.fsx",
+]
 
 [tasks.lint-project]
 description = "Lint repo + fsproj structure for NuGet OSS readiness (the same tool CI's lint-project job runs)"
@@ -91,6 +94,7 @@ description = "Run every check CI runs, in CI's order, with no auto-fix"
 run = [
   "dotnet tool restore",
   "dotnet fsi tests/verify-package-metadata.fsx",
+  "dotnet fsi tests/verify-package-metadata.cases.fsx",
   "dotnet restore",
   "dotnet fantomas --check src/ tests/ examples/",
   "dotnet tool run syncdocs check",

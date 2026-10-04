@@ -6,6 +6,13 @@ promoted to the new version heading on release.
 
 ## Unreleased
 
+- fix: **the dependency-floor check accepts every valid NuGet range.** `verify-package-metadata.fsx`
+  now parses the declared `SqlHydra.Query` version with `NuGet.Versioning.VersionRange`, so an
+  exact range such as `[5.1.0]` passes instead of being reported as the unparseable floor `5.1.0]`.
+  An exclusive lower bound (`(5.1.0,)`) or a range with no lower bound now fails, and a prerelease
+  floor still fails. `verify-package-metadata.cases.fsx` runs the script over a table of declared
+  values and expected exit codes, in CI and in `mise run ci`.
+
 ## 0.1.0-alpha.3 - 2026-09-28
 
 - feat: **the generator emits the system column; nothing patches the generated file.** Name the

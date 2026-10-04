@@ -26,6 +26,8 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Verify package metadata
         run: dotnet fsi tests/verify-package-metadata.fsx
+      - name: Verify package metadata against its case table
+        run: dotnet fsi tests/verify-package-metadata.cases.fsx
 
   build:
     uses: michaelglass/MichaelsWackyFsPackageTools/.github/workflows/michaels-wacky-build.yml@main
