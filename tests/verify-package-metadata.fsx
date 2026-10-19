@@ -19,7 +19,7 @@ open System
 open System.Xml.Linq
 open NuGet.Versioning
 
-let expectedFloor = "5.1.0"
+let expectedFloor = "5.1.1"
 
 let projectPath =
     IO.Path.Combine(

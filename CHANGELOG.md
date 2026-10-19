@@ -6,6 +6,13 @@ promoted to the new version heading on release.
 
 ## Unreleased
 
+- fix: **require SqlHydra.Query 5.1.1.** 5.1.1 registers an infix operator declared by an
+  extension assembly that loads while the host is scanning for them (SqlHydra #174), and its CLI
+  no longer crashes on an omitted optional TOML key (SqlHydra #175). Consumers on 5.1.0 move to
+  5.1.1; this package's API is unchanged. The README and the dependency-floor check name the new
+  floor, and the check's case table gains `5.1.0` as a below-floor failure.
+- chore(deps): Microsoft.SourceLink.GitHub 10.0.402; tests on Npgsql 10.0.3,
+  Testcontainers.PostgreSql 4.16.0 and Microsoft.Testing.Extensions.CodeCoverage 18.12.0.
 - fix: **the dependency-floor check accepts every valid NuGet range.** `verify-package-metadata.fsx`
   now parses the declared `SqlHydra.Query` version with `NuGet.Versioning.VersionRange`, so an
   exact range such as `[5.1.0]` passes instead of being reported as the unparseable floor `5.1.0]`.
