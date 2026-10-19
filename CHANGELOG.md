@@ -6,6 +6,8 @@ promoted to the new version heading on release.
 
 ## Unreleased
 
+## 0.1.0-alpha.4 - 2026-10-19
+
 - fix: **require SqlHydra.Query 5.1.1.** 5.1.1 registers an infix operator declared by an
   extension assembly that loads while the host is scanning for them (SqlHydra #174), and its CLI
   no longer crashes on an omitted optional TOML key (SqlHydra #175). Consumers on 5.1.0 move to
